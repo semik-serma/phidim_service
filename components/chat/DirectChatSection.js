@@ -48,6 +48,7 @@ import { useAuth } from "@/context/AuthContext";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall } from "@/components/calls/CallProvider";
 import { fetchWithFailover } from "@/lib/apiClient";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 const QUICK_SERVICE_PROMPTS = [
   "Hello! Is a technician available for doorstep service today?",
@@ -212,6 +213,10 @@ export function DirectChatSection({
 
   // Send Message Handler
   const handleSendMessage = async (customText = null) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     const textToSend = (customText || inputText).trim();
     if (!textToSend || !selectedUser) return;
 

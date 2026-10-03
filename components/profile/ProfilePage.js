@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { updateOwnProfileAction } from "@/lib/actions/profile-actions";
 import { useAuth } from "@/context/AuthContext";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 /**
  * Own-profile editor. Uses the RBAC-guarded server action
@@ -50,7 +51,16 @@ export default function ProfilePage({ user }) {
           </div>
 
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <form action={formAction} className="space-y-4">
+          <form
+            action={formAction}
+            onSubmit={(e) => {
+              if (!BACKEND_READY) {
+                e.preventDefault();
+                triggerBackendWarning();
+              }
+            }}
+            className="space-y-4"
+          >
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Name</label>
               <input

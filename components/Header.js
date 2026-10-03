@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Heart, User, Eye, Facebook, Youtube, Linkedin, Globe, ExternalLink, LayoutDashboard, LogOut, Wrench } from "lucide-react";
+import { Search, Heart, User, Eye, Globe, ExternalLink, LayoutDashboard, LogOut, Wrench } from "lucide-react";
+import { FaYoutube, FaFacebookF, FaLinkedinIn } from "react-icons/fa6";
 import { SERVICE_CATEGORIES } from "../data/services";
 import { formatCount } from "../utils/formatCount";
 import { useAuth } from "@/context/AuthContext";
@@ -85,35 +86,35 @@ export const Header = ({
 
         {/* Social Links, Visitor Counter & Portfolio - Tight padding & gaps */}
         <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-between md:justify-end shrink-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {!isAuthenticated && (
-              <div className="hidden lg:flex items-center gap-1">
+              <div className="hidden lg:flex items-center gap-2 sm:gap-2.5">
                 <a
                   href="https://www.facebook.com/dhanraj.serma.14"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-5.5 h-5.5 rounded-full bg-[#1877f2] text-white flex items-center justify-center hover:scale-110 transition-transform shadow-2xs"
+                  className="w-7.5 h-7.5 rounded-full bg-[#1877f2] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xs hover:shadow-md"
                   title="Facebook: Dhanraj Serma"
                 >
-                  <Facebook className="w-3 h-3 fill-current" />
+                  <FaFacebookF className="w-3.5 h-3.5" />
                 </a>
                 <a
                   href="https://www.youtube.com/@semikserma"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-5.5 h-5.5 rounded-full bg-[#ff0000] text-white flex items-center justify-center hover:scale-110 transition-transform shadow-2xs"
+                  className="w-8 h-8 rounded-full bg-[#ff0000] hover:bg-[#e60000] text-white flex items-center justify-center hover:scale-115 active:scale-95 transition-all shadow-sm hover:shadow-md hover:shadow-red-500/40 ring-1 ring-red-400/30"
                   title="YouTube: @semikserma"
                 >
-                  <Youtube className="w-3 h-3 fill-current" />
+                  <FaYoutube className="w-4.5 h-4.5" />
                 </a>
                 <a
                   href="https://www.linkedin.com/in/semik-serma-8263a3391/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-5.5 h-5.5 rounded-full bg-[#0a66c2] text-white flex items-center justify-center hover:scale-110 transition-transform shadow-2xs"
+                  className="w-7.5 h-7.5 rounded-full bg-[#0a66c2] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xs hover:shadow-md"
                   title="LinkedIn: Semik Serma"
                 >
-                  <Linkedin className="w-3 h-3 fill-current" />
+                  <FaLinkedinIn className="w-3.5 h-3.5" />
                 </a>
               </div>
             )}

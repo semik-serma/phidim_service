@@ -22,6 +22,8 @@ import { HomepageCommentSection } from "./components/HomepageCommentSection";
 import { ServiceBookingModal } from "./components/ServiceBookingModal";
 import { LanNetworkingPage } from "./components/LanNetworkingPage";
 import { ContactUsPage } from "./components/ContactUsPage";
+import { ElectricalCalculator } from "./components/calculator/ElectricalCalculator";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 import { Footer } from "./components/Footer";
 import { SERVICES } from "@/data/services";
 
@@ -70,6 +72,8 @@ export default function App() {
           setActiveTab("ALL SERVICES");
         } else if (normalized === "LAN" || normalized === "LAN NETWORKING") {
           setActiveTab("LAN NETWORKING");
+        } else if (normalized === "CALCULATOR" || normalized === "ELECTRICAL CALCULATOR") {
+          setActiveTab("CALCULATOR");
         } else if (normalized === "ABOUT") {
           setActiveTab("ABOUT");
         } else if (normalized === "CONTACT" || normalized === "CONTACT US") {
@@ -107,6 +111,10 @@ export default function App() {
   }, []);
 
   const handleIncrementLikes = () => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setLikeCount((prev) => {
       const next = prev + 1;
       try {
@@ -329,7 +337,25 @@ export default function App() {
           />
         )}
 
-        {/* TAB 6: LOGIN / REGISTER PAGE */}
+        {/* TAB 6: ELECTRICAL CALCULATOR */}
+        {activeTab === "CALCULATOR" && (
+          <div className="max-w-[1536px] mx-auto px-4 md:px-8 lg:px-12 py-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setActiveTab("HOME");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="inline-flex items-center gap-2 text-xs font-bold text-gray-700 hover:text-green-700 bg-white hover:bg-gray-50 px-4 py-2.5 rounded-xl border border-gray-200 shadow-2xs transition-all cursor-pointer"
+              >
+                <span>← Return to Home (फिदिम सेवा गृहपृष्ठ)</span>
+              </button>
+            </div>
+            <ElectricalCalculator onBookService={handleBookService} />
+          </div>
+        )}
+
+        {/* TAB 7: LOGIN / REGISTER PAGE */}
         {activeTab === "LOGIN / REGISTER" && (
           <AuthPage
             initialRole="USER"

@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import socket from "../realtime/client.js";
 import { fetchWithFailover, CPANEL_LIVE_BACKEND_URL } from "@/lib/apiClient";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 const AuthContext = createContext({
   user: null,
@@ -252,6 +253,10 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const loginWithGoogle = useCallback(async (targetRole = "USER") => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     try {
       if (typeof window !== "undefined") {
         const origin = window.location.origin;
@@ -284,6 +289,10 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async ({ emailOrPhone, password, rememberMe = false, role = "USER" }) => {
+      if (!BACKEND_READY) {
+        triggerBackendWarning();
+        return;
+      }
       try {
         const res = await fetchWithFailover("/api/auth/login", {
           method: "POST",
@@ -331,6 +340,10 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(
     async (data) => {
+      if (!BACKEND_READY) {
+        triggerBackendWarning();
+        return;
+      }
       try {
         const res = await fetchWithFailover("/api/auth/register", {
           method: "POST",
@@ -381,6 +394,10 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const updateUser = useCallback(async (updatedFields) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setUser((prev) => {
       const next = { ...(prev || {}), ...updatedFields };
       if (typeof window !== "undefined") {

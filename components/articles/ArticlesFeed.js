@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 const INITIAL_ARTICLES = [
   {
@@ -113,6 +114,10 @@ export function ArticlesFeed({ onOpenCreateModal, onStartChat, onStartCall }) {
   const [likedArticles, setLikedArticles] = useState({});
 
   const toggleFollow = (authorId, authorName) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setFollowingMap((prev) => {
       const isCurrentlyFollowing = !!prev[authorId];
       const nextState = { ...prev, [authorId]: !isCurrentlyFollowing };
@@ -121,6 +126,10 @@ export function ArticlesFeed({ onOpenCreateModal, onStartChat, onStartCall }) {
   };
 
   const toggleLike = (articleId) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setLikedArticles((prev) => ({
       ...prev,
       [articleId]: !prev[articleId],

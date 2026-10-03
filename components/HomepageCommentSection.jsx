@@ -24,6 +24,13 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithFailover } from "@/lib/apiClient";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import {
+  fetchDjangoComments,
+  postDjangoComment,
+  postDjangoReply,
+  likeDjangoComment,
+} from "@/services/commentService";
 
 // Comprehensive multi-language comment discussions (Nepali & English only)
 const INITIAL_COMMENTS = [
@@ -208,25 +215,23 @@ export function HomepageCommentSection() {
   const [activeReplyId, setActiveReplyId] = useState(null);
   const [replyInputText, setReplyInputText] = useState("");
 
-  // Restore saved comments & reactions from server database with localStorage fallback
+  // Restore saved comments & reactions from Django backend with localStorage fallback
   useEffect(() => {
     async function loadServerComments() {
       try {
-        const res = await fetchWithFailover("/api/homepage/get-comments");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.comments) && data.comments.length > 0) {
-            if (data.comments[0]?.author) {
-              data.comments[0].author.avatarUrl = "/dhanraj.png";
-            }
-            setComments(data.comments);
-            try {
-              localStorage.setItem("phidim_homepage_comments_v7", JSON.stringify(data.comments));
-            } catch (e) {}
-            return;
-          }
+        const djangoList = await fetchDjangoComments();
+        if (Array.isArray(djangoList) && djangoList.length > 0) {
+          // Keep featured Founder post at top and append Django comments
+          const combined = [INITIAL_COMMENTS[0], ...djangoList];
+          setComments(combined);
+          try {
+            localStorage.setItem("phidim_homepage_comments_v7", JSON.stringify(combined));
+          } catch (e) {}
+          return;
         }
-      } catch (e) { }
+      } catch (e) {
+        console.warn("Failed to load comments from Django backend, checking fallback:", e);
+      }
 
       // Offline / fallback to localStorage
       try {
@@ -286,9 +291,7 @@ export function HomepageCommentSection() {
   };
 
   const handleInputFocus = () => {
-    if (!isAuthenticated) {
-      setShowLoginPrompt(true);
-    }
+    // Open for all community visitors
   };
 
   const triggerToast = (msg) => {
@@ -298,45 +301,36 @@ export function HomepageCommentSection() {
     }, 4000);
   };
 
-  const redirectToLogin = () => {
-    if (newCommentText.trim()) {
-      try {
-        sessionStorage.setItem("phidim_pending_comment_draft", newCommentText.trim());
-      } catch (e) { }
-    }
-    triggerToast("Please log in to interact with comments...");
-    setTimeout(() => {
-      window.location.href = "/login?redirect=/?action=comment";
-    }, 400);
-  };
-
-  const handleAddComment = (e) => {
+  const handleAddComment = async (e) => {
     if (e) e.preventDefault();
-
-    if (!isAuthenticated || !user) {
-      setShowLoginPrompt(true);
-      redirectToLogin();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
       return;
     }
 
     const trimmed = newCommentText.trim();
     if (!trimmed) return;
 
+    const tempId = `cmt-${Date.now()}`;
+    const authorName = user?.displayName || user?.name || "Community Member";
+    const authorRole = user?.role || "Verified Visitor";
+    const authorAvatar =
+      user?.avatar ||
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+
     const newCmt = {
-      id: `cmt-${Date.now()}`,
+      id: tempId,
       author: {
-        name: user?.displayName || user?.name || "Verified Member",
-        avatarUrl:
-          user?.avatar ||
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-        role: user?.role || "USER",
+        name: authorName,
+        avatarUrl: authorAvatar,
+        role: authorRole,
       },
       translations: {
         Nepali: trimmed,
         English: trimmed,
       },
       text: trimmed,
-      likes: 1,
+      likes: 0,
       dislikes: 0,
       createdAt: "Just now",
       isCardStyle: true,
@@ -348,52 +342,65 @@ export function HomepageCommentSection() {
     setNewCommentText("");
     setShowComments(true);
 
-    // Save to permanent backend server database API
-    fetchWithFailover("/api/homepage/post-comment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comment: newCmt }),
-    }).catch((err) => {
-      console.error("Failed to sync comment to backend database:", err);
-    });
-
-    const updatedReactions = { ...reactions, [newCmt.id]: "like" };
+    const updatedReactions = { ...reactions, [tempId]: "like" };
     setReactions(updatedReactions);
     try {
       localStorage.setItem("phidim_homepage_comment_reactions", JSON.stringify(updatedReactions));
     } catch (err) { }
 
     triggerToast("Your comment has been posted to the discussion! 🎉");
+
+    // Sync to Django Backend Models
+    try {
+      const saved = await postDjangoComment({
+        text: trimmed,
+        articleId: 1,
+        userId: user?.djangoId || (typeof user?.id === "number" ? user.id : null),
+      });
+      if (saved && saved.djangoId) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === tempId ? { ...c, ...saved, id: saved.id, djangoId: saved.djangoId } : c
+          )
+        );
+      }
+    } catch (err) {
+      console.warn("Failed to sync comment to Django database:", err);
+    }
   };
 
-  const handleAddReply = (parentCommentId) => {
-    if (!isAuthenticated || !user) {
-      setShowLoginPrompt(true);
-      redirectToLogin();
+  const handleAddReply = async (parentCommentId) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
       return;
     }
-
     const trimmed = replyInputText.trim();
     if (!trimmed) return;
 
+    const tempRepId = `rep-${Date.now()}`;
+    const authorName = user?.displayName || user?.name || "Community Member";
+    const authorRole = user?.role || "Verified Visitor";
+    const authorAvatar =
+      user?.avatar ||
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
+
     const newReply = {
-      id: `rep-${Date.now()}`,
+      id: tempRepId,
       author: {
-        name: user?.displayName || user?.name || "Verified Member",
-        avatarUrl:
-          user?.avatar ||
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-        role: user?.role || "USER",
+        name: authorName,
+        avatarUrl: authorAvatar,
+        role: authorRole,
       },
       translations: {
         Nepali: trimmed,
         English: trimmed,
       },
       text: trimmed,
-      likes: 1,
+      likes: 0,
       createdAt: "Just now",
     };
 
+    const parent = comments.find((c) => c.id === parentCommentId);
     const updatedComments = comments.map((c) => {
       if (c.id === parentCommentId) {
         return {
@@ -407,28 +414,51 @@ export function HomepageCommentSection() {
     saveComments(updatedComments);
     setReplyInputText("");
     setActiveReplyId(null);
-
-    // Sync updated comment with reply to backend database
-    const parent = updatedComments.find((c) => c.id === parentCommentId);
-    if (parent) {
-      fetchWithFailover("/api/homepage/post-comment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment: parent }),
-      }).catch((err) => {
-        console.error("Failed to sync reply to backend database:", err);
-      });
-    }
-
     triggerToast("Your reply has been posted! 💬");
+
+    // Sync to Django Backend Models
+    try {
+      const commentDjangoId =
+        parent?.djangoId ||
+        (typeof parentCommentId === "string" && parentCommentId.startsWith("django-cmt-")
+          ? parseInt(parentCommentId.replace("django-cmt-", ""), 10)
+          : 1);
+
+      if (commentDjangoId) {
+        const savedReply = await postDjangoReply({
+          commentDjangoId,
+          replyText: trimmed,
+          articleId: 1,
+          userId: user?.djangoId || (typeof user?.id === "number" ? user.id : null),
+        });
+        if (savedReply && savedReply.djangoId) {
+          setComments((prev) =>
+            prev.map((c) => {
+              if (c.id === parentCommentId) {
+                return {
+                  ...c,
+                  replies: (c.replies || []).map((r) =>
+                    r.id === tempRepId
+                      ? { ...r, ...savedReply, id: savedReply.id, djangoId: savedReply.djangoId }
+                      : r
+                  ),
+                };
+              }
+              return c;
+            })
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to sync reply to Django database:", err);
+    }
   };
 
-  const handleReaction = (id, type) => {
-    if (!isAuthenticated || !user) {
-      setShowLoginPrompt(true);
+  const handleReaction = async (id, type) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
       return;
     }
-
     const currentReaction = reactions[id];
     let nextReaction = null;
     let likeDelta = 0;
@@ -455,11 +485,12 @@ export function HomepageCommentSection() {
       localStorage.setItem("phidim_homepage_comment_reactions", JSON.stringify(updatedReactions));
     } catch (err) { }
 
+    const targetComment = comments.find((c) => c.id === id);
     const updatedComments = comments.map((c) => {
       if (c.id === id) {
         return {
           ...c,
-          likes: Math.max(0, c.likes + likeDelta),
+          likes: Math.max(0, (c.likes || 0) + likeDelta),
           dislikes: Math.max(0, (c.dislikes || 0) + dislikeDelta),
         };
       }
@@ -468,7 +499,7 @@ export function HomepageCommentSection() {
           if (r.id === id) {
             return {
               ...r,
-              likes: Math.max(0, r.likes + likeDelta),
+              likes: Math.max(0, (r.likes || 0) + likeDelta),
             };
           }
           return r;
@@ -479,14 +510,21 @@ export function HomepageCommentSection() {
     });
 
     saveComments(updatedComments);
+
+    // Sync like with Django backend
+    if (type === "like" && targetComment) {
+      const commentDjangoId =
+        targetComment.djangoId ||
+        (typeof id === "string" && id.startsWith("django-cmt-")
+          ? parseInt(id.replace("django-cmt-", ""), 10)
+          : null);
+      if (commentDjangoId) {
+        likeDjangoComment(commentDjangoId, nextReaction === "like" ? "like" : "unlike");
+      }
+    }
   };
 
   const handleShare = (item) => {
-    if (!isAuthenticated || !user) {
-      setShowLoginPrompt(true);
-      return;
-    }
-
     const activeText = getCommentText(item, activeLang);
     const shareText = `"${activeText}" — ${item.author.name} on Phidim Service (https://phidimservice.com.np)`;
     if (navigator.clipboard) {
@@ -533,43 +571,6 @@ export function HomepageCommentSection() {
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
           <Check className="w-4 h-4 text-emerald-400" />
           <span>{showToast}</span>
-        </div>
-      )}
-
-      {/* Login Prompt Modal */}
-      {showLoginPrompt && !isAuthenticated && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-200 dark:border-slate-800 text-center space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-xs">
-              <Lock className="w-7 h-7" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                Log In to Participate
-              </h3>
-              <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                Please log in to like, dislike, comment, reply, or share in this discussion. Guests can view comments freely!
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col gap-2.5">
-              <button
-                onClick={redirectToLogin}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Go to Login / Register</span>
-              </button>
-
-              <button
-                onClick={() => setShowLoginPrompt(false)}
-                className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -803,10 +804,6 @@ export function HomepageCommentSection() {
               {/* Add Comment Button */}
               <button
                 onClick={() => {
-                  if (!isAuthenticated) {
-                    setShowLoginPrompt(true);
-                    return;
-                  }
                   setIsAddingComment(!isAddingComment);
                   if (!showComments) setShowComments(true);
                   setTimeout(() => {
@@ -906,10 +903,6 @@ export function HomepageCommentSection() {
                       <div className="flex items-center justify-end gap-3.5 text-gray-700 dark:text-gray-300 pt-0.5">
                         <button
                           onClick={() => {
-                            if (!isAuthenticated) {
-                              setShowLoginPrompt(true);
-                              return;
-                            }
                             setActiveReplyId(isReplying ? null : cmt.id);
                           }}
                           className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 transition-colors cursor-pointer"

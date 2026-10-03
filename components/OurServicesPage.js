@@ -88,7 +88,8 @@ export const OurServicesPage = ({
         "🔌 Electrical Troubleshooting (विद्युत समस्या समाधान)",
         "🛠️ Electrical Maintenance (विद्युत मर्मत तथा Maintenance)",
         "💡 New Electrical Installation (नयाँ Electrical Installation)",
-        "🔋 Inverter Repair (इन्भर्टर मर्मत)"
+        "🔋 Inverter Repair (इन्भर्टर मर्मत)",
+        "⚡ Battery Runtime Calculator"
       ]
     },
     {

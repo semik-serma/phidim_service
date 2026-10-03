@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
 import { saveUserAvatar, resolveUserAvatar } from "@/lib/avatarCache.js";
 import { saveRealUserToRegistry } from "@/lib/userRegistry.js";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80",
@@ -90,6 +91,10 @@ export function AccountSettings({ onShowToast }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setIsSaving(true);
 
     try {

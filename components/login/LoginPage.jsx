@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Mail,
@@ -28,6 +28,7 @@ import { toast } from '@/components/ui/toast';
 import { useAuth, DEMO_ACCOUNTS } from '@/context/AuthContext';
 import { FloatingField } from '@/components/login/FloatingField';
 import { BrandPanel } from '@/components/login/BrandPanel';
+import { triggerBackendWarning, BACKEND_READY } from '@/lib/backendWarning';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -80,7 +81,7 @@ function GoogleIcon({ className }) {
 }
 
 export default function LoginPage() {
-  const { user, isAuthenticated, login, register, loginWithGoogle } = useAuth();
+  const { user, isAuthenticated, login, register, loginWithGoogle, updateUser } = useAuth();
   const router = useRouter();
 
   const [role, setRole] = useState('USER'); // 'USER' | 'TECHNICIAN' | 'ADMIN'
@@ -94,8 +95,8 @@ export default function LoginPage() {
         user.role === 'ADMIN'
           ? '/admin/dashboard'
           : user.role === 'TECHNICIAN'
-          ? '/technician/dashboard'
-          : '/user/dashboard';
+            ? '/technician/dashboard'
+            : '/user/dashboard';
       if (typeof window !== 'undefined') {
         window.location.href = target;
       }
@@ -212,6 +213,13 @@ export default function LoginPage() {
   const handleUserSubmit = async (e) => {
     e.preventDefault();
     setServerError('');
+
+    // Backend-dependent action intercepted while backend APIs are in development
+    if (!BACKEND_READY) {
+      triggerBackendWarning('USER');
+      return;
+    }
+
     if (!validateUserForm()) return;
     setIsSubmitting(true);
     try {
@@ -221,13 +229,13 @@ export default function LoginPage() {
         rememberMe,
         role: 'USER',
       });
-      
+
       const targetDashboard =
         account?.role === 'ADMIN'
           ? '/admin/dashboard'
           : account?.role === 'TECHNICIAN'
-          ? '/technician/dashboard'
-          : '/user/dashboard';
+            ? '/technician/dashboard'
+            : '/user/dashboard';
 
       if (typeof window !== 'undefined') {
         window.location.href = targetDashboard;
@@ -244,6 +252,13 @@ export default function LoginPage() {
   const handleTechSubmit = async (e) => {
     e.preventDefault();
     setServerError('');
+
+    // Backend-dependent action intercepted while backend APIs are in development
+    if (!BACKEND_READY) {
+      triggerBackendWarning('TECHNICIAN');
+      return;
+    }
+
     if (!validateTechForm()) return;
     setIsSubmitting(true);
     try {
@@ -286,6 +301,13 @@ export default function LoginPage() {
   const handleAdminSubmit = async (e) => {
     e.preventDefault();
     setServerError('');
+
+    // Backend-dependent action intercepted while backend APIs are in development
+    if (!BACKEND_READY) {
+      triggerBackendWarning('ADMIN');
+      return;
+    }
+
     if (!validateAdminForm()) return;
     setIsSubmitting(true);
     try {
@@ -309,6 +331,12 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = async (selectedRole) => {
+    // Backend-dependent action intercepted while backend APIs are in development
+    if (!BACKEND_READY) {
+      triggerBackendWarning(selectedRole || role);
+      return;
+    }
+
     const roleToUse = selectedRole;
     setRole(roleToUse);
     const demo = DEMO_ACCOUNTS[roleToUse] || DEMO_ACCOUNTS.USER;
@@ -320,8 +348,8 @@ export default function LoginPage() {
         roleToUse === 'ADMIN'
           ? '/admin/dashboard'
           : roleToUse === 'TECHNICIAN'
-          ? '/technician/dashboard'
-          : '/user/dashboard';
+            ? '/technician/dashboard'
+            : '/user/dashboard';
       toast.success(`Signed in as ${account.name}. Redirecting to ${targetDashboard}...`);
       if (typeof window !== 'undefined') {
         window.location.href = targetDashboard;
@@ -334,6 +362,25 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    // Backend-dependent action intercepted while Google authentication backend is in development
+    if (!BACKEND_READY) {
+      triggerBackendWarning(role || 'USER');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setServerError('');
+    try {
+      await loginWithGoogle('USER');
+    } catch (err) {
+      const msg = err?.message || 'Google sign-in hit an unexpected error. Please try again.';
+      setServerError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-[#f4f8f6]">
@@ -352,28 +399,31 @@ export default function LoginPage() {
         <div className="relative w-full max-w-[480px] flex items-center justify-between mb-6 sm:mb-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-[#16A34A] transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16A34A]/40 rounded-lg"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[#16A34A] hover:text-[#15803D] transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16A34A]/40 rounded-lg"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="w-5 h-5" />
             <span>Back to Main Website</span>
           </Link>
 
-          <div className="lg:hidden flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-[#16A34A] p-0.5 bg-slate-900">
-              <img
-                src="/logo.png"
-                alt="Phidim Service Logo"
-                className="w-full h-full object-contain rounded-full"
-                loading="lazy"
-              />
+          <div className="flex items-center gap-2.5">
+            {/* Mobile Brand Logo */}
+            <div className="lg:hidden flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-[#16A34A] p-0.5 bg-slate-900">
+                <img
+                  src="/logo.png"
+                  alt="Phidim Service Logo"
+                  className="w-full h-full object-contain rounded-full"
+                  loading="lazy"
+                />
+              </div>
+              <span className="text-xs font-black text-[#111827] tracking-tight">PHIDIM SERVICE</span>
             </div>
-            <span className="text-xs font-black text-[#111827] tracking-tight">PHIDIM SERVICE</span>
           </div>
         </div>
 
         {/* Main Auth Card */}
         <div className="relative w-full max-w-[480px] bg-white/90 backdrop-blur-xl rounded-[32px] p-6 sm:p-8 border border-slate-200/70 shadow-[0_24px_60px_rgba(6,78,59,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-          
+
           {/* Top Right 3-Dot Hidden Options Menu */}
           <div className="absolute top-5 right-5 z-20">
             <button
@@ -450,15 +500,15 @@ export default function LoginPage() {
               {role === 'USER'
                 ? 'Customer Account Sign In'
                 : role === 'TECHNICIAN'
-                ? 'Field Technician Portal'
-                : 'System Administrator Access'}
+                  ? 'Field Technician Portal'
+                  : 'System Administrator Access'}
             </h2>
             <p className="text-xs text-[#6B7280] font-medium max-w-sm mx-auto">
               {role === 'USER'
-                ? 'Sign in to request home services, manage orders & track technicians in Panchthar.'
+                ? '⚠️ Warning: Backend Development in Progress'
                 : role === 'TECHNICIAN'
-                ? 'Fill out your technician identity & assigned ward details to launch your Technician Command Interface.'
-                : 'Authenticate with master admin credentials to manage Phidim Service operations & users.'}
+                  ? 'Fill out your technician identity & assigned ward details to launch your Technician Command Interface.'
+                  : 'Authenticate with master admin credentials to manage Phidim Service operations & users.'}
             </p>
           </div>
 
@@ -479,9 +529,8 @@ export default function LoginPage() {
                   setServerError('');
                   setFieldErrors({});
                 }}
-                className={`py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  role === tab.key ? tab.active : tab.inactive
-                }`}
+                className={`py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${role === tab.key ? tab.active : tab.inactive
+                  }`}
               >
                 <tab.icon className="w-4 h-4 shrink-0" />
                 <span className="truncate">{tab.label}</span>
@@ -554,9 +603,20 @@ export default function LoginPage() {
                   />
                   <span className="text-xs text-slate-600 font-medium">Remember me</span>
                 </label>
-                <Link href="/forgot-password" className="text-xs font-bold text-[#16A34A] hover:underline">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    if (!BACKEND_READY) {
+                      e.preventDefault();
+                      triggerBackendWarning(role || 'USER');
+                    } else {
+                      router.push('/forgot-password');
+                    }
+                  }}
+                  className="text-xs font-bold text-[#16A34A] hover:underline cursor-pointer bg-transparent border-0 p-0"
+                >
                   Forgot Password?
-                </Link>
+                </button>
               </div>
 
               <button
@@ -592,18 +652,16 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setTechMode('LOGIN')}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      techMode === 'LOGIN' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-3 py-1 rounded-lg transition-all ${techMode === 'LOGIN' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     Tech Login
                   </button>
                   <button
                     type="button"
                     onClick={() => setTechMode('REGISTER')}
-                    className={`px-3 py-1 rounded-lg transition-all ${
-                      techMode === 'REGISTER' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-3 py-1 rounded-lg transition-all ${techMode === 'REGISTER' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     Tech Register
                   </button>
@@ -822,12 +880,21 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => loginWithGoogle('USER')}
+                onClick={handleGoogleSignIn}
                 disabled={isSubmitting}
-                className="w-full h-[50px] rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 text-xs font-bold flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                className="w-full h-[52px] rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-900 text-xs font-bold flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-75 relative overflow-hidden group"
               >
-                <GoogleIcon className="w-5 h-5" />
-                <span>Continue with Google</span>
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2 text-emerald-600 font-bold">
+                    <span className="w-4 h-4 border-2 border-emerald-600/40 border-t-emerald-600 rounded-full animate-spin" />
+                    <span>Connecting with Google...</span>
+                  </span>
+                ) : (
+                  <>
+                    <GoogleIcon className="w-5 h-5 transition-transform group-hover:scale-110 shrink-0" />
+                    <span>Continue with Google</span>
+                  </>
+                )}
               </button>
             </>
           )}
@@ -849,6 +916,7 @@ export default function LoginPage() {
         <p className="relative mt-8 text-center text-[11px] text-slate-400">
           &copy; {new Date().getFullYear()} Phidim Service • Panchthar, Koshi, Nepal
         </p>
+
       </main>
     </div>
   );

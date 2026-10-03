@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { getBookingsList, subscribeBookings, createBooking, cancelBooking } from "@/lib/bookingStore";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 import { SERVICES, SERVICE_CATEGORIES } from "@/data/services";
 
 export const USER_STATUS_CLASSES = {
@@ -131,6 +132,10 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
 
   const handleCreateBookingSubmit = (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
 
     let serviceTitle = "";
     if (selectedServiceId === "custom") {
@@ -178,6 +183,10 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
   };
 
   const handleCancel = (bookingId) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (confirm(`Are you sure you want to cancel booking #${bookingId}?`)) {
       cancelBooking(bookingId, "Customer requested cancellation");
       setBookings((prev) =>

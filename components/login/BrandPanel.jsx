@@ -106,9 +106,6 @@ export function BrandPanel({ isLoading, onDemoLogin }) {
             <h2 className="text-base font-black text-white tracking-tight leading-none group-hover:text-[#22C55E] transition-colors">
               PHIDIM SERVICE
             </h2>
-            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mt-1">
-              Panchthar • Koshi • Nepal
-            </p>
           </div>
         </Link>
       </header>
@@ -116,7 +113,6 @@ export function BrandPanel({ isLoading, onDemoLogin }) {
       {/* Center content */}
       <div className="relative z-10 space-y-8">
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ animationDelay: '100ms' }}>
-          <p className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300"><Sparkles className="h-3.5 w-3.5" /> Trusted local service platform</p>
           <h2 className="text-4xl xl:text-[2.85rem] font-extrabold text-white tracking-tight leading-[1.12]">
             Reliable technical &amp; digital solutions at your{' '}
             <span className="bg-gradient-to-r from-[#22C55E] to-[#2DD4BF] bg-clip-text text-transparent">
@@ -158,13 +154,6 @@ export function BrandPanel({ isLoading, onDemoLogin }) {
         <p>
           &copy; {new Date().getFullYear()} Phidim Service. All rights reserved.
         </p>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-slate-400 hover:text-[#22C55E] font-semibold transition-colors"
-        >
-          Back to home
-          <ChevronRight className="w-3.5 h-3.5" />
-        </Link>
       </footer>
     </aside>
   );

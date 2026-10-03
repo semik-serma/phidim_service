@@ -4,6 +4,7 @@ import { useState } from "react";
 import { TopBar } from "./TopBar";
 import { Header } from "./Header";
 import { Navbar } from "./Navbar";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export function SeoHeaderNavbar({ activeTabName = "ALL SERVICES" }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +36,8 @@ export function SeoHeaderNavbar({ activeTabName = "ALL SERVICES" }) {
       window.location.href = "/services";
     } else if (normalized === "LAN NETWORKING") {
       window.location.href = "/?tab=lan-networking";
+    } else if (normalized === "CALCULATOR" || normalized === "ELECTRICAL CALCULATOR" || normalized === "BATTERY CALCULATOR") {
+      window.location.href = "/battery-runtime-calculator";
     } else if (normalized === "ABOUT") {
       window.location.href = "/?tab=about";
     } else if (normalized === "CONTACT US") {
@@ -43,6 +46,10 @@ export function SeoHeaderNavbar({ activeTabName = "ALL SERVICES" }) {
   };
 
   const handleIncrementLikes = () => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setLikeCount((prev) => {
       const next = prev + 1;
       if (typeof window !== "undefined") {

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { fetchWithFailover } from '@/lib/apiClient';
+import { triggerBackendWarning, BACKEND_READY } from '@/lib/backendWarning';
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -20,6 +21,10 @@ function ResetPasswordForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setError('');
 
     if (!password) {

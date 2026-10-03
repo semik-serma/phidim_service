@@ -37,6 +37,7 @@ import { getStoredRealUsers, subscribeUserRegistry, DEFAULT_REAL_USERS, saveReal
 import { UserAvatar } from "@/components/UserAvatar";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithFailover } from "@/lib/apiClient";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export function UsersAndActions({
   onAddService,
@@ -150,6 +151,10 @@ export function UsersAndActions({
 
   // Handle Changing User Role
   const handleChangeRole = async (targetUser, newRole) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setActionLoading(true);
     try {
       const res = await fetchWithFailover("/api/admin/users", {
@@ -189,6 +194,10 @@ export function UsersAndActions({
 
   // Handle Changing User Status
   const handleChangeStatus = async (targetUser, newStatus) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setActionLoading(true);
     try {
       const res = await fetchWithFailover("/api/admin/users", {

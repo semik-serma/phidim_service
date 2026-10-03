@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { X, Phone, MapPin, Send, CheckCircle2 } from "lucide-react";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+
 export const ContactModal = ({ isOpen, onClose }) => {
   const [sent, setSent] = useState(false);
   const [msg, setMsg] = useState({ name: "", phone: "", message: "" });
   if (!isOpen) return null;
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setSent(true);
     setTimeout(() => {
       setSent(false);

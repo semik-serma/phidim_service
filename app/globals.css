@@ -378,3 +378,21 @@
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
+
+/* Prevent unwanted mobile auto-zoom on form inputs (keeps default 100% zoom) */
+@media screen and (max-width: 767px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Calculator scroll and viewport stabilization */
+.calculator-scroll-target {
+  scroll-margin-top: 80px;
+}

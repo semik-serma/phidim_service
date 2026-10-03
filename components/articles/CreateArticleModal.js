@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, FileText, Image as ImageIcon, Sparkles, Send, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export function CreateArticleModal({ isOpen, onClose, onPublish }) {
   const { user } = useAuth();
@@ -20,6 +21,10 @@ export function CreateArticleModal({ isOpen, onClose, onPublish }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (!title.trim() || !summary.trim() || !content.trim()) return;
 
     const newArticle = {

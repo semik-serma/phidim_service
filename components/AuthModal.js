@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, UserCheck, MoreVertical, ShieldCheck, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export const AuthModal = ({ isOpen, onClose }) => {
   const { login, register, loginWithGoogle } = useAuth();
@@ -15,6 +16,10 @@ export const AuthModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (!emailOrPhone || !password) return;
     setIsSubmitted(true);
     if (role === "ADMIN") {
@@ -178,6 +183,10 @@ export const AuthModal = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={() => {
+                  if (!BACKEND_READY) {
+                    triggerBackendWarning();
+                    return;
+                  }
                   loginWithGoogle("USER");
                   onClose();
                 }}

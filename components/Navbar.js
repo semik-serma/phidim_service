@@ -22,18 +22,17 @@ import {
   Eye,
   Globe,
   ExternalLink,
-  Facebook,
-  Youtube,
-  Linkedin,
   LogOut,
   LayoutDashboard,
   PhoneCall,
   CalendarCheck,
 } from "lucide-react";
+import { FaYoutube, FaFacebookF, FaLinkedinIn } from "react-icons/fa6";
 import { SERVICE_CATEGORIES } from "../data/services";
 import { formatCount } from "../utils/formatCount";
 import { useAuth } from "@/context/AuthContext";
 import { RopePullingDevBadge } from "./RopePullingDevBadge";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export const Navbar = ({
   activeTab,
@@ -56,6 +55,10 @@ export const Navbar = ({
   const [hasLiked, setHasLiked] = useState(false);
 
   const handleLikeClick = () => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setHasLiked(true);
     if (onIncrementLikes) {
       onIncrementLikes();
@@ -84,7 +87,7 @@ export const Navbar = ({
     }
   };
 
-  const navItems = ["HOME", "ALL SERVICES", "LAN NETWORKING", "ABOUT", "CONTACT US"];
+  const navItems = ["HOME", "ALL SERVICES", "LAN NETWORKING", "CALCULATOR", "ABOUT", "CONTACT US"];
 
   return (
     <nav className="font-navbar bg-white border-b border-gray-200 relative z-30 shadow-xs px-6 sm:px-16 md:px-28 lg:px-44 xl:px-56" data-navbar="true">
@@ -405,33 +408,33 @@ export const Navbar = ({
 
               <div className="flex items-center justify-between">
                 {!isAuthenticated ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <a
                       href="https://www.facebook.com/dhanraj.serma.14"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-7 h-7 rounded-full bg-[#1877f2] text-white flex items-center justify-center hover:scale-110 transition-transform shadow-2xs"
+                      className="w-9 h-9 rounded-full bg-[#1877f2] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xs"
                       title="Facebook"
                     >
-                      <Facebook className="w-3.5 h-3.5 fill-current" />
+                      <FaFacebookF className="w-4 h-4" />
                     </a>
                     <a
                       href="https://www.youtube.com/@semikserma"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-7 h-7 rounded-full bg-[#ff0000] text-white flex items-center justify-center hover:scale-110 transition-transform shadow-2xs"
+                      className="w-9.5 h-9.5 rounded-full bg-[#ff0000] hover:bg-[#e60000] text-white flex items-center justify-center hover:scale-115 active:scale-95 transition-all shadow-sm hover:shadow-red-500/40 ring-1 ring-red-400/30"
                       title="YouTube"
                     >
-                      <Youtube className="w-3.5 h-3.5 fill-current" />
+                      <FaYoutube className="w-5 h-5" />
                     </a>
                     <a
                       href="https://www.linkedin.com/in/semik-serma-8263a3391/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-7 h-7 rounded-full bg-[#0a66c2] text-white flex items-center justify-center hover:scale-110 transition-transform shadow-2xs"
+                      className="w-9 h-9 rounded-full bg-[#0a66c2] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xs"
                       title="LinkedIn"
                     >
-                      <Linkedin className="w-3.5 h-3.5 fill-current" />
+                      <FaLinkedinIn className="w-4 h-4" />
                     </a>
                   </div>
                 ) : (

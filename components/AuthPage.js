@@ -14,6 +14,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export const AuthPage = ({ onNavigateHome, initialRole = "USER" }) => {
   const { login, register, isLoading } = useAuth();
@@ -32,6 +33,10 @@ export const AuthPage = ({ onNavigateHome, initialRole = "USER" }) => {
 
   const handleUserSubmit = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (!userContact || !userPassword) return;
     try {
       if (mode === "LOGIN") {
@@ -53,6 +58,10 @@ export const AuthPage = ({ onNavigateHome, initialRole = "USER" }) => {
 
   const handleTechSubmit = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (!techIdOrPhone || !techPassword) return;
     try {
       if (mode === "LOGIN") {

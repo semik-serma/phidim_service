@@ -3,64 +3,68 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
-  BookOpen,
-  LayoutGrid,
-  Search,
-  Bookmark,
+  LayoutDashboard,
+  Briefcase,
+  Wrench,
+  Navigation,
+  CalendarPlus,
+  CreditCard,
   MessageSquare,
   Settings,
-  ChevronDown,
-  Plus,
-  Mic,
-  Send,
-  Phone,
-  Video,
-  Check,
-  CheckCheck,
-  X,
+  HelpCircle,
+  Search,
+  Bell,
   Sparkles,
-  Home,
-  LogOut,
+  ArrowUpRight,
+  Sliders,
+  CheckCircle2,
+  Clock,
   User,
   ShieldCheck,
-  Wrench,
   Zap,
-  Droplet,
+  Camera,
   Wifi,
   Wind,
   Tv,
+  Droplet,
   Monitor,
-  Camera,
+  Phone,
+  Video,
+  X,
+  Send,
+  Calendar,
   MapPin,
-  Clock,
-  ExternalLink,
-  Info,
-  CalendarCheck,
-  MoreVertical,
-  Paperclip,
-  Smile,
-  CheckCircle2,
-  Trash2,
-  Users,
-  UserCheck,
-  UserPlus,
-  Filter
+  FileText,
+  Download,
+  AlertTriangle,
+  Menu,
+  ChevronDown,
+  Layers,
+  Star,
+  Check,
+  MoreHorizontal,
+  DollarSign
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
 import { useCall } from "@/components/calls/CallProvider";
 import {
+  getBookingsList,
+  createBooking,
+  subscribeBookings
+} from "@/lib/bookingStore";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import {
   getConversationMessages,
   saveMessageToConversation,
-  clearConversationMessages,
   subscribeChatStore,
-  playMessageChime,
-} from "@/lib/chatStore.js";
-import { getStoredRealUsers, DEFAULT_REAL_USERS, subscribeUserRegistry } from "@/lib/userRegistry.js";
-import { fetchWeather } from "@/services/weatherService.js";
-import { SERVICE_CATEGORIES, SERVICES } from "@/data/services.js";
+  playMessageChime
+} from "@/lib/chatStore";
+import { fetchWeather } from "@/services/weatherService";
+import { SERVICES, SERVICE_CATEGORIES } from "@/data/services";
 import { AccountSettings } from "@/components/AccountSettings";
 
+// Category Icons Map
 const CATEGORY_ICON_MAP = {
   all: Wrench,
   electrical: Zap,
@@ -72,112 +76,87 @@ const CATEGORY_ICON_MAP = {
   computer: Monitor,
 };
 
-// Category mapping helper to match technician specialties
-const SPECIALTY_MAP = {
-  "plumbing": ["plumb", "pipe", "sanitary", "water", "drain", "leak"],
-  "electrical": ["electr", "wire", "inverter", "solar", "power", "switch"],
-  "cctv": ["cctv", "camera", "security", "alarm", "surveillance", "nvr"],
-  "fiber": ["fiber", "internet", "lan", "network", "router", "splice", "wifi"],
-  "ac-cooling": ["ac", "cool", "refrigerat", "air condition", "compressor"],
-  "dth-tv": ["dishhome", "dth", "tv", "dish", "antenna"],
-  "computer": ["computer", "it", "laptop", "pc", "software"],
-};
-
-export default function UserDashboardNewUI() {
+export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   const { user, logout } = useAuth();
   const { startCall } = useCall() || {};
 
-  // Fallback current user
+  // Active User representation
   const currentUser = user || {
     id: "usr-cust-semik",
     name: "Semik Serma",
     displayName: "Semik Serma",
     email: "semikserma@gmail.com",
+    phone: "+977 9862772400",
     role: "USER",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+    address: "Phidim-1, Panchthar",
   };
 
-  // Clock & Weather State
-  const [localTimeStr, setLocalTimeStr] = useState("3:00 AM");
+  // Nav state
+  const [activeTab, setActiveTab] = useState(
+    initialTab === "my-bookings" ? "bookings" : initialTab || "dashboard"
+  );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Time & Weather
   const [nepalTimeStr, setNepalTimeStr] = useState("3:00 AM");
+  const [localTimeStr, setLocalTimeStr] = useState("3:00 AM");
   const [weatherInfo, setWeatherInfo] = useState("Today 3:00 AM Rain At Phidim");
 
-  // Category selection state
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  // Bookings Store state
+  const [bookings, setBookings] = useState([]);
+  const [tableFilter, setTableFilter] = useState("My Bookings"); // "My Bookings" | "Categories" | "Emergency" | "Completed"
+  const [timeRange, setTimeRange] = useState("1D"); // "1D" | "2W" | "1M"
+  const [serviceCategoryTab, setServiceCategoryTab] = useState("All"); // "All" | "CCTV" | "AC" | "Fiber"
+
+  // Modals state
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [selectedBookingForTracking, setSelectedBookingForTracking] = useState(null);
+  const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
+  const [activeChatPartner, setActiveChatPartner] = useState(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-
-  // User search & connected people state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("ALL"); // "ALL" | "TECHNICIAN" | "USER" | "ADMIN" | "CONNECTED"
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [inputText, setInputText] = useState("");
-  const [chatVersion, setChatVersion] = useState(0);
-  const [registryVersion, setRegistryVersion] = useState(0);
   const [toastMessage, setToastMessage] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [connectedUserIds, setConnectedUserIds] = useState(new Set(["usr-tech-rajesh", "usr-cust-semik", "usr-tech-anita", "usr-tech-suman", "usr-admin-dhanraj"]));
 
-  // Mobile sidebar toggle
-  const [mobileContactsOpen, setMobileContactsOpen] = useState(false);
+  // Booking Form fields
+  const [bookServiceId, setBookServiceId] = useState(SERVICES[0]?.id || "srv-cctv-install");
+  const [bookAddress, setBookAddress] = useState("Phidim-1, Main Bazar, Panchthar");
+  const [bookDate, setBookDate] = useState(new Date().toISOString().split("T")[0]);
+  const [bookTimeSlot, setBookTimeSlot] = useState("Morning (09:00 AM - 12:00 PM)");
+  const [bookIsEmergency, setBookIsEmergency] = useState(false);
+  const [bookNotes, setBookNotes] = useState("");
 
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  // Chat message input
+  const [chatInputText, setChatInputText] = useState("");
+  const [chatVersion, setChatVersion] = useState(0);
 
-  // Click Outside Refs for Dropdowns
-  const categoryRef = useRef(null);
+  // Search filter
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Dropdown click-outside refs
+  const notificationRef = useRef(null);
   const profileRef = useRef(null);
-  const filterRef = useRef(null);
-  const attachMenuRef = useRef(null);
-
-  // Global click outside listener to auto-close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (categoryRef.current && !categoryRef.current.contains(e.target)) {
-        setIsCategoryMenuOpen(false);
-      }
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setIsProfileMenuOpen(false);
-      }
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
-        setShowFilterDropdown(false);
-      }
-      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target)) {
-        setShowAttachMenu(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("touchstart", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, []);
+  const chatMessagesEndRef = useRef(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1. Live Clocks (Local and Nepal Time) & Weather
+  // Sync Clocks (Nepal Time UTC+5:45 & Local Time)
   useEffect(() => {
     const updateTimes = () => {
       const now = new Date();
-      const localStr = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-      setLocalTimeStr(localStr);
+      setLocalTimeStr(now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }));
 
       const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
       const nepalOffset = 5.75 * 3600000;
       const nepalDate = new Date(utcTime + nepalOffset);
-      const nptStr = nepalDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-      setNepalTimeStr(nptStr);
+      setNepalTimeStr(nepalDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }));
     };
-
     updateTimes();
     const interval = setInterval(updateTimes, 1000);
     return () => clearInterval(interval);
@@ -185,1029 +164,1326 @@ export default function UserDashboardNewUI() {
 
   // Fetch Phidim Weather
   useEffect(() => {
-    let isMounted = true;
-    const loadWeather = async () => {
+    let active = true;
+    async function load() {
       try {
         const data = await fetchWeather();
-        if (isMounted && data) {
-          const conditionLabel = data.condition?.label || (data.isRainingNow ? "Rain" : "Partly Cloudy");
+        if (active && data) {
+          const condition = data.condition?.label || (data.isRainingNow ? "Rain" : "Clear");
           const temp = data.currentTemp ? `${data.currentTemp}°C` : "";
-          const rainText = data.isRainingNow ? "Rain At Phidim" : `${conditionLabel} At Phidim ${temp}`.trim();
-          setWeatherInfo(`Today ${nepalTimeStr} ${rainText}`);
+          setWeatherInfo(`Phidim ${temp} • ${condition}`);
         }
       } catch (e) {
-        if (isMounted) {
-          setWeatherInfo(`Today ${nepalTimeStr} Rain At Phidim`);
-        }
+        if (active) setWeatherInfo("Phidim, Panchthar • 18°C Partly Cloudy");
       }
-    };
-    loadWeather();
-    const wInterval = setInterval(loadWeather, 5 * 60 * 1000);
+    }
+    load();
     return () => {
-      isMounted = false;
-      clearInterval(wInterval);
-    };
-  }, [nepalTimeStr]);
-
-  // 2. Real-time Subscriptions
-  useEffect(() => {
-    const unsubChat = subscribeChatStore(() => {
-      setChatVersion((v) => v + 1);
-    });
-    const unsubRegistry = subscribeUserRegistry(() => {
-      setRegistryVersion((v) => v + 1);
-    });
-    return () => {
-      unsubChat();
-      unsubRegistry();
+      active = false;
     };
   }, []);
 
-  // 3. Construct Contacts & Connected People List
-  const contacts = useMemo(() => {
-    const localReal = getStoredRealUsers();
-    const myEmail = (currentUser?.email || "").toLowerCase().trim();
-    const map = new Map();
+  // Load Bookings from Reactive Store
+  useEffect(() => {
+    setBookings(getBookingsList(currentUser.email));
+    const unsubscribe = subscribeBookings((newList) => {
+      if (newList) {
+        setBookings(getBookingsList(currentUser.email));
+      }
+    });
+    return () => unsubscribe();
+  }, [currentUser.email]);
 
-    const semikUser = {
-      id: "usr-cust-semik",
-      name: "Semik Serma",
-      displayName: "Semik Serma",
-      role: "USER",
-      email: "semikserma@gmail.com",
-      phone: "+977 9862772400",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-      bio: "Connected community friend & customer in Phidim.",
-      location: "Phidim-1, Panchthar",
-      online: true,
-      lastMessage: "Hey, Good Morning Semik Serma",
-      category: "Customer Friend",
+  // Subscribe to Chat Store updates
+  useEffect(() => {
+    const unsub = subscribeChatStore(() => {
+      setChatVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
+        setIsNotificationOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setIsProfileMenuOpen(false);
+      }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-    [semikUser, ...DEFAULT_REAL_USERS, ...localReal].forEach((u) => {
-      if (u && (u.email || u.id)) {
-        const key = (u.email || u.id).toLowerCase().trim();
-        if (key && key !== myEmail) {
-          // Determine category/specialty tag
-          let cat = u.category || u.specialty || "";
-          if (!cat) {
-            const bioLower = (u.bio || "" + u.displayName || "").toLowerCase();
-            if (bioLower.includes("cctv") || bioLower.includes("security")) cat = "CCTV & Security";
-            else if (bioLower.includes("electric")) cat = "Electrical & Inverter";
-            else if (bioLower.includes("plumb")) cat = "Plumbing & Sanitary";
-            else if (bioLower.includes("fiber") || bioLower.includes("dth")) cat = "DishHome & Fiber";
-            else if (u.role === "TECHNICIAN") cat = "General Technician";
-            else cat = "Connected User";
-          }
-
-          map.set(key, {
-            ...u,
-            displayName: u.displayName || u.name || key.split("@")[0] || "User",
-            role: u.role || "USER",
-            online: u.online !== false,
-            category: cat,
-            lastMessage: u.lastMessage || (u.name === "Semik Serma" ? "Hey, Good Morning Semik Serma" : `Connected in ${u.location || "Phidim"}`),
-          });
-        }
+  // Filtered Bookings Table
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      if (tableFilter === "Emergency" && !b.isEmergency) return false;
+      if (tableFilter === "Completed" && b.status !== "Completed") return false;
+      if (tableFilter === "Categories" && serviceCategoryTab !== "All") {
+        if (!b.category?.toLowerCase().includes(serviceCategoryTab.toLowerCase())) return false;
       }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = b.serviceName?.toLowerCase().includes(q);
+        const matchId = b.id?.toLowerCase().includes(q);
+        const matchTech = b.technician?.name?.toLowerCase().includes(q);
+        if (!matchName && !matchId && !matchTech) return false;
+      }
+      return true;
+    });
+  }, [bookings, tableFilter, serviceCategoryTab, searchQuery]);
+
+  // Handle Book Service Submission
+  const handleConfirmBooking = (e) => {
+    e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
+    const serviceObj = SERVICES.find((s) => s.id === bookServiceId) || SERVICES[0];
+
+    const newBooking = createBooking({
+      serviceName: serviceObj.name,
+      category: serviceObj.category,
+      customerName: currentUser.displayName || currentUser.name || "Semik Serma",
+      customerEmail: currentUser.email,
+      customerPhone: currentUser.phone || "+977 9862772400",
+      address: bookAddress,
+      date: bookDate,
+      timeSlot: bookTimeSlot,
+      status: "Pending",
+      amount: `Rs. ${serviceObj.basePrice?.toLocaleString() || "1,500"}`,
+      numericAmount: serviceObj.basePrice || 1500,
+      paymentStatus: "Cash / Fonepay on Completion",
+      isEmergency: bookIsEmergency,
+      notes: bookNotes,
+      technician: {
+        name: "Rajesh Tamang",
+        specialty: "CCTV & Electrical Lead",
+        phone: "+977 9842109842",
+        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+        rating: 4.98,
+      },
     });
 
-    return Array.from(map.values());
-  }, [currentUser?.email, registryVersion]);
+    setIsBookingModalOpen(false);
+    showToast(`Booking ${newBooking?.id || "Created"} Confirmed! Technician assigned.`);
+    setBookNotes("");
+  };
 
-  // Default select Semik Serma
-  useEffect(() => {
-    if (!selectedUser && contacts.length > 0) {
-      const semik = contacts.find((c) => c.name?.toLowerCase().includes("semik")) || contacts[0];
-      setSelectedUser(semik);
-    }
-  }, [contacts, selectedUser]);
+  // Open Live Tracking
+  const handleOpenTracking = (booking) => {
+    setSelectedBookingForTracking(booking || bookings[0]);
+    setIsTrackingModalOpen(true);
+  };
 
-  // Filtered Contacts based on Category Selection & Search
-  const filteredContacts = useMemo(() => {
-    return contacts.filter((c) => {
-      const name = (c.displayName || c.name || "").toLowerCase();
-      const email = (c.email || "").toLowerCase();
-      const phone = (c.phone || "").toLowerCase();
-      const bio = (c.bio || "").toLowerCase();
-      const category = (c.category || "").toLowerCase();
-      const role = (c.role || "").toUpperCase();
-      const q = searchQuery.toLowerCase().trim();
-
-      // 1. Search Query Match
-      const matchesSearch =
-        !q ||
-        name.includes(q) ||
-        email.includes(q) ||
-        phone.includes(q) ||
-        bio.includes(q) ||
-        category.includes(q);
-
-      // 2. Role Filter Match
-      const matchesRole =
-        roleFilter === "ALL" ||
-        (roleFilter === "CONNECTED" && connectedUserIds.has(c.id)) ||
-        (roleFilter === "TECHNICIAN" && role === "TECHNICIAN") ||
-        (roleFilter === "USER" && (role === "USER" || role === "CUSTOMER")) ||
-        (roleFilter === "ADMIN" && role === "ADMIN");
-
-      // 3. Category Selection Match
-      let matchesCategory = true;
-      if (selectedCategory !== "All") {
-        const catLower = selectedCategory.toLowerCase();
-        const keywords = SPECIALTY_MAP[selectedCategory.toLowerCase()] || [catLower];
-        matchesCategory =
-          category.includes(catLower) ||
-          keywords.some((k) => category.includes(k) || bio.includes(k) || name.includes(k));
+  // Open Chat Drawer with a Technician
+  const handleOpenChat = (partner) => {
+    setActiveChatPartner(
+      partner || {
+        name: "Rajesh Tamang",
+        displayName: "Rajesh Tamang",
+        role: "TECHNICIAN",
+        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+        specialty: "Senior CCTV & Electrical Lead",
+        online: true,
       }
+    );
+    setIsChatDrawerOpen(true);
+  };
 
-      return matchesSearch && matchesRole && matchesCategory;
-    });
-  }, [contacts, searchQuery, roleFilter, selectedCategory, connectedUserIds]);
-
-  // 4. Current Conversation Messages
-  const currentMessages = useMemo(() => {
-    if (!selectedUser) return [];
-    const myId = currentUser?.email || currentUser?.id || "user";
-    const theirId = selectedUser?.email || selectedUser?.id || "semik";
-    const msgs = getConversationMessages(myId, theirId);
-
-    if (msgs.length === 0 && selectedUser.name?.toLowerCase().includes("semik")) {
-      return [
-        {
-          id: "init-semik-1",
-          sender: theirId,
-          text: "Hey, Good Morning Semik Serma",
-          timestamp: "3:00 AM",
-          status: "delivered",
-        },
-      ];
+  // Send message in Chat Drawer
+  const handleSendMessage = () => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
     }
-    return msgs;
-  }, [selectedUser, currentUser?.email, currentUser?.id, chatVersion]);
-
-  // Auto scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [currentMessages]);
-
-  // Send Message Handler
-  const handleSendMessage = (textToSend = null) => {
-    const text = (textToSend !== null ? textToSend : inputText).trim();
-    if (!text || !selectedUser) return;
-
-    const myId = currentUser?.email || currentUser?.id || "user";
-    const theirId = selectedUser?.email || selectedUser?.id || "semik";
+    if (!chatInputText.trim() || !activeChatPartner) return;
+    const myId = currentUser.email || "user";
+    const theirId = activeChatPartner.email || activeChatPartner.name || "tech";
 
     const newMsg = {
       id: `msg-${Date.now()}`,
       sender: myId,
-      senderName: currentUser?.displayName || currentUser?.name || "Me",
-      text,
+      senderName: currentUser.displayName || currentUser.name || "Customer",
+      text: chatInputText.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }),
       status: "delivered",
     };
 
     saveMessageToConversation(myId, theirId, newMsg);
     playMessageChime();
-    setInputText("");
+    setChatInputText("");
     setChatVersion((v) => v + 1);
 
-    // Auto reply for realistic connection
-    if (selectedUser.role === "TECHNICIAN" || selectedUser.name?.toLowerCase().includes("semik")) {
-      setTimeout(() => {
-        const replyMsg = {
-          id: `reply-${Date.now()}`,
-          sender: theirId,
-          senderName: selectedUser.displayName || selectedUser.name,
-          text: `Hello! I received your message. I am active and connected in Phidim.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }),
-          status: "delivered",
-        };
-        saveMessageToConversation(myId, theirId, replyMsg);
-        playMessageChime();
-        setChatVersion((v) => v + 1);
-      }, 1200);
-    }
+    // Auto-reply simulation from on-duty technician
+    setTimeout(() => {
+      const reply = {
+        id: `reply-${Date.now()}`,
+        sender: theirId,
+        senderName: activeChatPartner.displayName || activeChatPartner.name,
+        text: "Namaste! I am on duty in Phidim. I have noted your location and will arrive on schedule.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }),
+        status: "delivered",
+      };
+      saveMessageToConversation(myId, theirId, reply);
+      playMessageChime();
+      setChatVersion((v) => v + 1);
+    }, 1200);
   };
 
-  // Call Handlers
-  const handleStartCall = (type = "voice") => {
-    if (!selectedUser) return;
-    if (startCall) {
-      startCall(
+  // Current chat messages
+  const chatMessages = useMemo(() => {
+    if (!activeChatPartner) return [];
+    const myId = currentUser.email || "user";
+    const theirId = activeChatPartner.email || activeChatPartner.name || "tech";
+    const msgs = getConversationMessages(myId, theirId);
+    if (msgs.length === 0) {
+      return [
         {
-          name: selectedUser.displayName || selectedUser.name,
-          role: selectedUser.role || "User",
-          avatar: selectedUser.avatar || "",
-          phone: selectedUser.phone || "+977 9862772457",
-          email: selectedUser.email,
+          id: "init-1",
+          sender: theirId,
+          senderName: activeChatPartner.displayName || activeChatPartner.name,
+          text: `Hello ${currentUser.name}! How can our Phidim technical team assist you today?`,
+          timestamp: "Just now",
+          status: "delivered",
         },
-        type
-      );
-    } else {
-      showToast(`Initiating ${type} call with ${selectedUser.displayName || selectedUser.name}...`);
+      ];
     }
+    return msgs;
+  }, [activeChatPartner, currentUser.email, currentUser.name, chatVersion]);
+
+  useEffect(() => {
+    if (isChatDrawerOpen) {
+      chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, isChatDrawerOpen]);
+
+  // Featured Specialist for bottom-right card
+  const featuredTech = {
+    name: "Rajesh Tamang",
+    title: "Senior CCTV & Electrical Lead",
+    rating: "4.98 ★",
+    jobsDone: "140+ jobs in Panchthar",
+    price: "Rs. 1,500",
+    status: "On-Duty Now",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+    badge: "Verified Specialist",
   };
 
-  // Voice recording simulation
-  const handleToggleVoiceRecord = () => {
-    if (isRecording) {
-      setIsRecording(false);
-      handleSendMessage("🎙️ [Voice Audio Note - 0:14s]");
-      showToast("Voice note sent to " + (selectedUser?.displayName || selectedUser?.name));
-    } else {
-      setIsRecording(true);
-      showToast("Recording voice message... Click mic again to send.");
-    }
-  };
+  // Popular Services for middle-right card
+  const popularServicesList = [
+    {
+      id: "srv-cctv",
+      name: "4-Camera HD CCTV Setup",
+      category: "CCTV",
+      price: "Rs. 3,500",
+      numeric: 3500,
+      icon: Camera,
+      tag: "Security",
+    },
+    {
+      id: "srv-ac",
+      name: "Split AC Gas Refill & Clean",
+      category: "AC",
+      price: "Rs. 2,200",
+      numeric: 2200,
+      icon: Wind,
+      tag: "Cooling",
+    },
+    {
+      id: "srv-fiber",
+      name: "Fiber Splicing & Wi-Fi Ext",
+      category: "Fiber",
+      price: "Rs. 1,800",
+      numeric: 1800,
+      icon: Wifi,
+      tag: "Internet",
+    },
+    {
+      id: "srv-plumb",
+      name: "Sanitary Pipe Leak Fix",
+      category: "All",
+      price: "Rs. 1,200",
+      numeric: 1200,
+      icon: Droplet,
+      tag: "Plumbing",
+    },
+  ];
 
-  // Toggle connection status
-  const handleToggleConnect = (uId) => {
-    setConnectedUserIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(uId)) {
-        next.delete(uId);
-        showToast("Removed connection");
-      } else {
-        next.add(uId);
-        showToast("Connected successfully! Added to your connected list.");
-      }
-      return next;
-    });
-  };
+  const filteredPopularServices = useMemo(() => {
+    if (serviceCategoryTab === "All") return popularServicesList;
+    return popularServicesList.filter((s) => s.category === serviceCategoryTab || s.category === "All");
+  }, [serviceCategoryTab]);
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#f4f7f5] dark:bg-[#040e0b] text-slate-900 dark:text-slate-100 overflow-hidden font-dm-sans select-none" data-dashboard="true">
-      {/* Toast Notification */}
+    <div className="bg-[#0b0b0f] text-[#ededed] min-h-screen flex flex-col lg:flex-row font-sans selection:bg-white selection:text-black">
+      {/* Toast Notification Alert */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-20 right-6 z-50 bg-[#074b1a]/95 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl border border-emerald-400/40 flex items-center gap-2.5 backdrop-blur-xl"
+            className="fixed top-5 right-5 z-50 bg-[#191922] text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-2.5 backdrop-blur-xl"
           >
-            <CheckCircle2 size={16} className="text-emerald-400" />
+            <CheckCircle2 size={16} className="text-white" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* 1. TOP GREEN HEADER BAR (Glassmorphism)                                    */}
+      {/* LEFT SIDEBAR (EXACT STYLING FROM REFERENCE IMAGE)                        */}
       {/* ========================================================================= */}
-      <header className="h-[52px] sm:h-[56px] glass-effect-header text-white px-3 sm:px-6 flex items-center justify-between shadow-md relative z-40 flex-shrink-0">
-        {/* Left: App Title */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMobileContactsOpen(!mobileContactsOpen)}
-            className="lg:hidden p-1.5 rounded-xl bg-emerald-800/70 hover:bg-emerald-700 text-white backdrop-blur-md transition-all"
-            title="Toggle Connected People"
-          >
-            <Users size={18} />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white font-black shadow-inner border border-white/25">
-              <ShieldCheck size={18} className="text-white drop-shadow" />
-            </div>
-            <h1 className="text-base sm:text-lg font-bold tracking-tight text-white drop-shadow-sm truncate">
-              Phidim Service <span className="text-emerald-200">User-Dashboard</span>
-            </h1>
-          </div>
-        </div>
-
-        {/* Center: Live Weather & Dual Time Pill */}
-        <div className="hidden md:flex items-center justify-center">
-          <div className="bg-[#054316]/80 hover:bg-[#054316]/95 border border-white/20 backdrop-blur-md px-4 py-1.5 rounded-full flex items-center gap-3 lg:gap-5 text-[11px] lg:text-xs font-semibold text-white/95 shadow-inner transition-colors">
-            <span className="flex items-center gap-1.5 text-emerald-100">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              {weatherInfo}
-            </span>
-            <span className="text-white/40">|</span>
-            <span className="text-emerald-200">Local-Time:{localTimeStr}</span>
-            <span className="text-white/40">|</span>
-            <span className="text-emerald-300 font-bold">Nepal-Time:{nepalTimeStr}</span>
-          </div>
-        </div>
-
-        {/* Right Action: Homepage Link */}
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-bold border border-white/25 backdrop-blur-md transition-all shadow-xs"
-          >
-            <Home size={13} />
-            <span>Main Site</span>
-          </Link>
-        </div>
-      </header>
-
-      {/* ========================================================================= */}
-      {/* 2. FULL-WIDTH SUB-NAVBAR WITH FULL-WIDTH YELLOW ACCENT LINE               */}
-      {/* ========================================================================= */}
-      <div className="h-[52px] sm:h-[54px] glass-effect-yellow-bar px-3 sm:px-6 flex items-center justify-between gap-3 flex-shrink-0 z-30 w-full relative">
-        {/* Left: Select Category Dropdown */}
-        <div ref={categoryRef} className="relative">
-          <button
-            onClick={() => setIsCategoryMenuOpen(!isCategoryMenuOpen)}
-            className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:text-emerald-700 dark:hover:text-emerald-400 px-3 py-1.5 rounded-xl hover:bg-emerald-50/80 dark:hover:bg-emerald-950/50 backdrop-blur-md transition-all"
-          >
-            <span className="truncate">
-              {selectedCategory === "All" ? "Technician Category" : `Category: ${selectedCategory}`}
-            </span>
-            <ChevronDown size={15} className={`transition-transform duration-200 ${isCategoryMenuOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {/* Select Category Popover Menu */}
-          <AnimatePresence>
-            {isCategoryMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                className="absolute left-0 top-11 w-64 bg-white/95 dark:bg-[#071911]/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-emerald-500/20 p-2 z-50 space-y-1"
-              >
-                <div className="px-3 py-1.5 border-b border-slate-100 dark:border-emerald-900/40 flex items-center justify-between">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Select Category</p>
-                  {selectedCategory !== "All" && (
-                    <button
-                      onClick={() => {
-                        setSelectedCategory("All");
-                        setIsCategoryMenuOpen(false);
-                      }}
-                      className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
-                    >
-                      Reset to All
-                    </button>
-                  )}
-                </div>
-                <div className="max-h-72 overflow-y-auto space-y-0.5">
-                  <button
-                    onClick={() => {
-                      setSelectedCategory("All");
-                      setIsCategoryMenuOpen(false);
-                      showToast("Showing all categories");
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors text-left ${
-                      selectedCategory === "All"
-                        ? "bg-emerald-100/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold"
-                        : "text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-800"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Wrench size={15} className="text-emerald-600 dark:text-emerald-400" />
-                      <span>All Categories</span>
-                    </span>
-                    {selectedCategory === "All" && <Check size={14} className="text-emerald-700 dark:text-emerald-300" />}
-                  </button>
-
-                  {SERVICE_CATEGORIES.filter((c) => c.id !== "all").map((cat) => {
-                    const IconComponent = CATEGORY_ICON_MAP[cat.id] || Wrench;
-                    const isCatSelected = selectedCategory === cat.name;
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => {
-                          setSelectedCategory(cat.name);
-                          setIsCategoryMenuOpen(false);
-                          showToast(`Filtered connected people by category: ${cat.name}`);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-colors text-left ${
-                          isCatSelected
-                            ? "bg-emerald-100/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold"
-                            : "text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-800"
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <IconComponent size={15} className="text-emerald-600 dark:text-emerald-400" />
-                          <span>{cat.name}</span>
-                        </span>
-                        {isCatSelected ? (
-                          <Check size={14} className="text-emerald-700 dark:text-emerald-300" />
-                        ) : (
-                          <span className="text-[10px] text-slate-400">({cat.count})</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Middle: Prominent Offer Banner (Dark Green Pill) */}
-        <div
-          onClick={() => setIsOfferModalOpen(true)}
-          className="flex-1 max-w-2xl mx-2 bg-gradient-to-r from-[#0e7024] to-[#0a561c] hover:from-[#11842b] hover:to-[#0c6622] text-white px-4 sm:px-6 py-2 rounded-full shadow-sm border border-emerald-400/30 flex items-center justify-between gap-2 cursor-pointer transition-all hover:scale-[1.01] backdrop-blur-md"
-          title="Click to view discount details"
-        >
-          <p className="text-[11px] sm:text-xs font-bold truncate text-center flex-1 tracking-tight">
-            Offer! Offer! Offer!, Now the Plumbling Service is Now 20% At Discount For 20% For 10 Days Go And Book A Service Now
-          </p>
-          <span className="text-yellow-300 font-extrabold text-xs flex-shrink-0 animate-pulse">20% OFF</span>
-        </div>
-
-        {/* Right: User Profile Avatar */}
-        <div ref={profileRef} className="relative flex-shrink-0">
-          <button
-            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-            className="w-9 h-9 rounded-full ring-2 ring-emerald-500/70 overflow-hidden shadow-sm hover:ring-emerald-400 transition-all flex items-center justify-center bg-slate-100 dark:bg-emerald-950"
-            title="User Profile & Settings"
-          >
-            {currentUser?.avatar ? (
-              <img src={currentUser.avatar} alt={currentUser.name || "User"} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center">
-                {(currentUser?.name || currentUser?.displayName || "U").substring(0, 2).toUpperCase()}
+      <aside
+        className={`w-[245px] lg:w-[250px] bg-[#0f0f14] border-r border-white/[0.06] p-4 flex flex-col justify-between flex-shrink-0 z-30 transition-all duration-300 ${
+          mobileSidebarOpen ? "fixed inset-y-0 left-0 shadow-2xl z-50 flex" : "hidden lg:flex"
+        }`}
+      >
+        <div className="space-y-6">
+          {/* Top User Profile Widget */}
+          <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <img
+                  src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"}
+                  alt={currentUser.name}
+                  className="w-10 h-10 rounded-full object-cover border border-white/20"
+                />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0f0f14]" />
               </div>
-            )}
-          </button>
-
-          {/* Profile Dropdown */}
-          <AnimatePresence>
-            {isProfileMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                className="absolute right-0 top-11 w-60 bg-white/95 dark:bg-[#071911]/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-emerald-500/20 p-2 z-50 space-y-1"
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-white truncate">{currentUser.displayName || currentUser.name}</h4>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-neutral-400 truncate">@semik_serma</span>
+                  <span className="bg-white/10 text-white text-[9px] px-1.5 py-0.2 rounded-md font-semibold border border-white/10">
+                    Pro
+                  </span>
+                </div>
+              </div>
+            </div>
+            {mobileSidebarOpen && (
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="lg:hidden text-neutral-400 hover:text-white p-1"
               >
-                <div className="px-3 py-2 border-b border-slate-100 dark:border-emerald-900/40">
-                  <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{currentUser?.displayName || currentUser?.name || "Customer User"}</p>
-                  <p className="text-[10px] text-slate-400 truncate">{currentUser?.email || "user@phidim.np"}</p>
-                </div>
-
-                <Link
-                  href="/"
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-800 rounded-xl transition-colors"
-                >
-                  <Home size={14} className="text-emerald-600" /> Go to Main Website
-                </Link>
-
-                <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    setIsSettingsModalOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-800 rounded-xl transition-colors text-left"
-                >
-                  <Settings size={14} className="text-blue-600" /> Account Settings
-                </button>
-
-                <div className="pt-1 border-t border-slate-100 dark:border-emerald-900/40">
-                  <button
-                    onClick={logout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors text-left"
-                  >
-                    <LogOut size={14} /> Log Out
-                  </button>
-                </div>
-              </motion.div>
+                <X size={16} />
+              </button>
             )}
-          </AnimatePresence>
-        </div>
-      </div>
+          </div>
 
-      {/* ========================================================================= */}
-      {/* 3. MAIN BODY CONTAINER: DUAL SIDEBAR + CHAT WORKSPACE                      */}
-      {/* (Both sidebars are now situated a little down below full-width yellow line) */}
-      {/* ========================================================================= */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* ----------------------------------------------------------------------- */}
-        {/* 3A. LEFT DARK GREEN RAIL NAVIGATION (Frosted Glass)                     */}
-        {/* ----------------------------------------------------------------------- */}
-        <nav
-          aria-label="User Navigation Rail"
-          className="w-[52px] sm:w-[58px] glass-effect-rail text-white flex flex-col items-center py-4 justify-between flex-shrink-0 z-20 shadow-lg"
-        >
-          {/* Top Icons */}
-          <div className="flex flex-col items-center gap-3 w-full px-1">
-            {/* Category Select Icon */}
+          {/* Nav Section: MENU */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between px-2 mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">MENU</span>
+              <Sliders size={12} className="text-neutral-400 hover:text-white cursor-pointer" />
+            </div>
+
+            {/* Dashboard Link */}
             <button
-              onClick={() => setIsCategoryMenuOpen(!isCategoryMenuOpen)}
-              className={`p-2.5 rounded-xl transition-all ${
-                isCategoryMenuOpen
-                  ? "bg-white/25 text-white shadow-inner ring-1 ring-white/30 backdrop-blur-md"
-                  : "text-emerald-100/80 hover:bg-white/15 hover:text-white"
+              onClick={() => {
+                setActiveTab("dashboard");
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                activeTab === "dashboard"
+                  ? "bg-gradient-to-r from-[#1e1e28] to-[#161620] text-white border border-white/10 shadow-inner font-semibold"
+                  : "text-neutral-300 hover:text-white hover:bg-white/[0.04]"
               }`}
-              title="Select Technician Category"
             >
-              <LayoutGrid size={20} />
+              <LayoutDashboard size={16} className={activeTab === "dashboard" ? "text-white" : "text-neutral-400"} />
+              <span>Dashboard</span>
             </button>
 
-            {/* Search Users Icon */}
+            {/* My Bookings Link */}
             <button
               onClick={() => {
-                const searchEl = document.getElementById("people-search-input");
-                if (searchEl) searchEl.focus();
+                setActiveTab("bookings");
+                setTableFilter("My Bookings");
+                setMobileSidebarOpen(false);
               }}
-              className="p-2.5 rounded-xl text-emerald-100/80 hover:bg-white/15 hover:text-white transition-all"
-              title="Search Users & Connected People"
-            >
-              <Search size={20} />
-            </button>
-
-            {/* Find Connected People Icon */}
-            <button
-              onClick={() => {
-                if (roleFilter === "CONNECTED") {
-                  setRoleFilter("ALL");
-                  showToast("Showing all users");
-                } else {
-                  setRoleFilter("CONNECTED");
-                  showToast("Showing connected people");
-                }
-              }}
-              className={`p-2.5 rounded-xl transition-all ${
-                roleFilter === "CONNECTED"
-                  ? "bg-white/25 text-white shadow-inner ring-1 ring-white/30 backdrop-blur-md"
-                  : "text-emerald-100/80 hover:bg-white/15 hover:text-white"
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                activeTab === "bookings"
+                  ? "bg-gradient-to-r from-[#1e1e28] to-[#161620] text-white border border-white/10 shadow-inner font-semibold"
+                  : "text-neutral-300 hover:text-white hover:bg-white/[0.04]"
               }`}
-              title="Filter Connected People"
             >
-              <Users size={20} />
+              <div className="flex items-center gap-3">
+                <Briefcase size={16} className={activeTab === "bookings" ? "text-white" : "text-neutral-400"} />
+                <span>My Bookings</span>
+              </div>
+              <span className="bg-white/10 text-neutral-200 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                {bookings.length}
+              </span>
             </button>
 
-            {/* Chat Messages Icon */}
+            {/* Services Catalog */}
             <button
               onClick={() => {
-                setRoleFilter("ALL");
-                setSelectedCategory("All");
+                setActiveTab("services");
+                setMobileSidebarOpen(false);
               }}
-              className="p-2.5 rounded-xl bg-white/25 text-white shadow-inner ring-1 ring-white/30 backdrop-blur-md"
-              title="Chat Messages"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                activeTab === "services"
+                  ? "bg-gradient-to-r from-[#1e1e28] to-[#161620] text-white border border-white/10 shadow-inner font-semibold"
+                  : "text-neutral-300 hover:text-white hover:bg-white/[0.04]"
+              }`}
             >
-              <MessageSquare size={20} />
+              <Wrench size={16} className={activeTab === "services" ? "text-white" : "text-neutral-400"} />
+              <span>Services Catalog</span>
+            </button>
+
+            {/* Track Technician */}
+            <button
+              onClick={() => {
+                handleOpenTracking();
+                setMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <Navigation size={16} className="text-neutral-400" />
+                <span>Track Technician</span>
+              </div>
+              <span className="bg-emerald-500/20 text-emerald-400 text-[9px] font-bold px-1.5 py-0.2 rounded-full border border-emerald-500/30 animate-pulse">
+                Live
+              </span>
             </button>
           </div>
 
-          {/* Bottom Settings Icon */}
-          <div className="w-full flex justify-center px-1">
+          {/* Nav Section: SERVICES / MANAGEMENT */}
+          <div className="space-y-1">
+            <div className="px-2 mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">SERVICES</span>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsBookingModalOpen(true);
+                setMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <CalendarPlus size={16} className="text-neutral-400" />
+              <span>Book New Service</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("payments");
+                setMobileSidebarOpen(false);
+                showToast("Opening Payments & Billing Ledger");
+              }}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <CreditCard size={16} className="text-neutral-400" />
+                <span>Payments & Receipts</span>
+              </div>
+              <span className="bg-white/10 text-neutral-300 text-[9px] font-semibold px-1.5 py-0.5 rounded-md">
+                eSewa
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleOpenChat();
+                setMobileSidebarOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquare size={16} className="text-neutral-400" />
+                <span>Technician Chat</span>
+              </div>
+              <span className="bg-white text-black text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                2
+              </span>
+            </button>
+          </div>
+
+          {/* Nav Section: UTILITIES */}
+          <div className="space-y-1">
+            <div className="px-2 mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">PREFERENCES</span>
+            </div>
+
             <button
               onClick={() => setIsSettingsModalOpen(true)}
-              className="p-2.5 rounded-xl text-emerald-100/80 hover:bg-white/15 hover:text-white transition-all"
-              title="Account Settings"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
             >
-              <Settings size={20} />
+              <Settings size={15} className="text-neutral-400" />
+              <span>Settings</span>
+            </button>
+
+            <button
+              onClick={() => setIsAiModalOpen(true)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
+            >
+              <HelpCircle size={15} className="text-neutral-400" />
+              <span>Support Center</span>
             </button>
           </div>
-        </nav>
+        </div>
 
-        {/* ----------------------------------------------------------------------- */}
-        {/* 3B. SECONDARY VIBRANT GREEN SIDEBAR PANEL (SEARCH & CONNECTED PEOPLES)   */}
-        {/* ----------------------------------------------------------------------- */}
-        <aside
-          className={`w-[290px] sm:w-[320px] glass-effect-sidebar flex flex-col flex-shrink-0 z-20 transition-transform duration-300 ${
-            mobileContactsOpen ? "absolute inset-y-0 left-[52px] z-40 shadow-2xl" : "hidden lg:flex"
-          }`}
+        {/* Bottom AI Promo Card (Replicating "Your AI Friend in Trade" from image) */}
+        <div
+          onClick={() => setIsAiModalOpen(true)}
+          className="mt-6 p-3.5 rounded-2xl bg-gradient-to-b from-[#181822] to-[#101016] border border-white/10 hover:border-white/20 transition-all cursor-pointer relative overflow-hidden shadow-lg group"
         >
-          {/* Top Search Users Input Box */}
-          <div className="p-3.5 border-b border-white/15 space-y-2">
-            <div ref={filterRef} className="relative">
-              <div className="bg-white/95 dark:bg-emerald-950/80 backdrop-blur-md rounded-full px-3.5 py-2 flex items-center justify-between shadow-sm border border-white/40 dark:border-emerald-700/40 focus-within:ring-2 focus-within:ring-emerald-800">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center text-white border border-white/10">
+              <Sparkles size={14} className="text-amber-300 group-hover:rotate-12 transition-transform" />
+            </div>
+            <span className="text-[9px] bg-white/10 text-neutral-300 px-2 py-0.5 rounded-full font-semibold">
+              Phidim
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <span className="inline-block text-[8px] uppercase tracking-wider text-neutral-300 font-bold bg-white/[0.06] px-1.5 py-0.2 rounded-sm">
+              NEW ERA
+            </span>
+            <p className="text-xs font-bold text-white leading-tight">
+              Your AI Assistant <br /> in Phidim
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+        />
+      )}
+
+      {/* ========================================================================= */}
+      {/* MAIN CONTENT WORKSPACE                                                   */}
+      {/* ========================================================================= */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto px-4 sm:px-6 lg:px-8 py-5 space-y-6">
+        {/* TOP BAR / BREADCRUMB & HEADER */}
+        <div className="space-y-2">
+          {/* Mobile hamburger + Breadcrumb */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-xl bg-[#171720] border border-white/10 text-white"
+              >
+                <Menu size={16} />
+              </button>
+              <div className="text-xs font-medium text-neutral-400">
+                <span>Phidim Service</span>
+                <span className="text-neutral-500 mx-1">/</span>
+                <span className="text-white font-semibold">Customer Dashboard</span>
+              </div>
+            </div>
+
+            {/* Weather / Time pill (desktop) */}
+            <div className="hidden md:flex items-center gap-2 text-[11px] font-medium bg-[#14141c] border border-white/[0.08] px-3 py-1 rounded-full text-neutral-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{weatherInfo}</span>
+              <span className="text-neutral-600">|</span>
+              <span className="text-white font-semibold">NPT: {nepalTimeStr}</span>
+            </div>
+          </div>
+
+          {/* Main Title Row & Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Welcome to Phidim Service !
+            </h1>
+
+            {/* Right Controls: Search, Bell, White CTA Button */}
+            <div className="flex items-center gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1 sm:w-56">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500" />
                 <input
-                  id="people-search-input"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Peoples Connected with You"
-                  className="w-full text-xs text-slate-800 dark:text-white placeholder-slate-400 bg-transparent outline-none pr-1 truncate font-medium"
+                  placeholder="Search services or bookings..."
+                  className="w-full bg-[#15151e] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white/30 transition-colors"
                 />
-
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-emerald-300 flex-shrink-0">
-                  <button
-                    onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                    className="hover:text-slate-900 dark:hover:text-white transition-colors p-0.5"
-                    title="Filter search type"
-                  >
-                    <ChevronDown size={14} />
-                  </button>
-                  <Search size={14} className="text-slate-500 dark:text-emerald-300" />
-                </div>
               </div>
 
-              {/* Search Filter Dropdown */}
-              <AnimatePresence>
-                {showFilterDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                    className="absolute left-0 right-0 top-11 bg-white/95 dark:bg-[#071911]/95 backdrop-blur-2xl rounded-2xl shadow-xl border border-slate-200 dark:border-emerald-800/40 py-1.5 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200"
-                  >
-                    {[
-                      { id: "ALL", label: "All Users & Technicians" },
-                      { id: "CONNECTED", label: "Connected Friends Only" },
-                      { id: "TECHNICIAN", label: "Technicians Only" },
-                      { id: "USER", label: "Customers & Friends" },
-                      { id: "ADMIN", label: "Official Admin Support" },
-                    ].map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => {
-                          setRoleFilter(f.id);
-                          setShowFilterDropdown(false);
-                          showToast(`Filter applied: ${f.label}`);
-                        }}
-                        className={`w-full text-left px-3.5 py-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 flex items-center justify-between ${
-                          roleFilter === f.id ? "text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50/60 dark:bg-emerald-950/40" : ""
-                        }`}
-                      >
-                        <span>{f.label}</span>
-                        {roleFilter === f.id && <Check size={14} />}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Active Filters Tag Pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {roleFilter !== "ALL" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-bold border border-white/25">
-                  <span>Filter: {roleFilter}</span>
-                  <button onClick={() => setRoleFilter("ALL")} className="hover:text-rose-200">
-                    <X size={10} />
-                  </button>
-                </span>
-              )}
-              {selectedCategory !== "All" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-yellow-400/30 backdrop-blur-md text-white text-[10px] font-bold border border-yellow-300/40">
-                  <span>{selectedCategory}</span>
-                  <button onClick={() => setSelectedCategory("All")} className="hover:text-rose-200">
-                    <X size={10} />
-                  </button>
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* User List Stream */}
-          <div className="flex-1 overflow-y-auto divide-y divide-white/10 px-2 py-1 space-y-1">
-            {filteredContacts.length === 0 ? (
-              <div className="p-6 text-center text-white/80 text-xs font-medium space-y-2">
-                <p>No connected people found matching &quot;{searchQuery}&quot;.</p>
+              {/* Notification Bell */}
+              <div ref={notificationRef} className="relative flex-shrink-0">
                 <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setRoleFilter("ALL");
-                    setSelectedCategory("All");
-                  }}
-                  className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md hover:bg-white/30 text-white text-[11px] font-bold transition-all border border-white/25"
+                  onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  className="p-2.5 rounded-xl bg-[#15151e] border border-white/10 hover:border-white/20 text-neutral-300 hover:text-white transition-colors relative"
+                  title="Notifications"
                 >
-                  Clear Filters
+                  <Bell size={16} />
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[#0b0b0f]" />
                 </button>
-              </div>
-            ) : (
-              filteredContacts.map((person) => {
-                const isSelected = selectedUser?.email === person.email || selectedUser?.id === person.id;
-                const isConnected = connectedUserIds.has(person.id);
 
-                return (
-                  <div
-                    key={person.id || person.email}
-                    onClick={() => {
-                      setSelectedUser(person);
-                      if (mobileContactsOpen) setMobileContactsOpen(false);
-                    }}
-                    className={`group relative flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all duration-200 ${
-                      isSelected
-                        ? "bg-[#258e33]/95 backdrop-blur-md text-white shadow-md border border-white/30"
-                        : "hover:bg-white/15 backdrop-blur-sm text-white border border-transparent"
-                    }`}
-                  >
-                    {/* User Avatar */}
-                    <div className="relative flex-shrink-0">
-                      {person.avatar ? (
-                        <img
-                          src={person.avatar}
-                          alt={person.displayName || person.name}
-                          className="w-10 h-10 rounded-full object-cover ring-2 ring-white/50 shadow-sm"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-emerald-800 text-white font-bold text-xs flex items-center justify-center ring-2 ring-white/50 shadow-sm">
-                          {(person.displayName || person.name || "U").substring(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                      {person.online && (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-300 ring-2 ring-[#3bb54a]" />
-                      )}
-                    </div>
-
-                    {/* Text Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-xs text-white truncate leading-tight">
-                          {person.displayName || person.name}
-                        </p>
-                        <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border ${
-                          person.role === "ADMIN"
-                            ? "bg-rose-950/80 text-rose-200 border-rose-400/40"
-                            : person.role === "TECHNICIAN"
-                            ? "bg-emerald-950/80 text-emerald-200 border-emerald-400/30"
-                            : "bg-blue-950/80 text-blue-200 border-blue-400/30"
-                        }`}>
-                          {person.role === "ADMIN" ? "Admin" : person.role === "TECHNICIAN" ? "Tech" : "User"}
+                {/* Notifications Popover */}
+                <AnimatePresence>
+                  {isNotificationOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      className="absolute right-0 top-12 w-80 bg-[#161620] border border-white/15 rounded-2xl p-3 shadow-2xl z-50 space-y-2 backdrop-blur-2xl"
+                    >
+                      <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                        <span className="text-xs font-bold text-white">Notifications</span>
+                        <span className="text-[10px] text-emerald-400 font-semibold cursor-pointer hover:underline">
+                          Mark all read
                         </span>
                       </div>
-                      <p className="text-[11px] text-emerald-100/90 truncate flex items-center gap-1 mt-0.5">
-                        <span className="truncate">{person.lastMessage}</span>
-                        <CheckCheck size={12} className="text-emerald-200 flex-shrink-0" />
-                      </p>
-                    </div>
-
-                    {/* Quick Connect / Bookmark Icon */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleConnect(person.id);
-                      }}
-                      className={`p-1 rounded-full transition-colors ${
-                        isConnected ? "text-amber-300" : "text-white/40 hover:text-white"
-                      }`}
-                      title={isConnected ? "Connected with you" : "Connect with person"}
-                    >
-                      <Bookmark size={13} fill={isConnected ? "currentColor" : "none"} />
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </aside>
-
-        {/* ----------------------------------------------------------------------- */}
-        {/* 3C. MAIN CONTENT WORKSPACE (Frosted Glass Canvas)                        */}
-        {/* ----------------------------------------------------------------------- */}
-        <main className="flex-1 bg-gradient-to-br from-[#f8faf9]/90 via-[#f0f6f2]/80 to-[#e9f3eb]/90 dark:from-[#06150e]/95 dark:via-[#091e14]/90 dark:to-[#05110b]/95 backdrop-blur-xl flex flex-col justify-between overflow-hidden relative">
-          {/* Active Chat Header with Call Actions */}
-          {selectedUser && (
-            <div className="px-6 py-2.5 bg-white/75 dark:bg-[#071d13]/75 backdrop-blur-xl border-b border-slate-200/80 dark:border-emerald-900/40 flex items-center justify-between flex-shrink-0 shadow-xs">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  {selectedUser.avatar ? (
-                    <img
-                      src={selectedUser.avatar}
-                      alt={selectedUser.displayName || selectedUser.name}
-                      className="w-9 h-9 rounded-full object-cover ring-2 ring-emerald-500/40 shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-emerald-500/40 shadow-sm">
-                      {(selectedUser.displayName || selectedUser.name || "U").substring(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  {selectedUser.online && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-white" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
-                    <span>{selectedUser.displayName || selectedUser.name}</span>
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-300 dark:border-emerald-700/50">
-                      {selectedUser.category || selectedUser.role}
-                    </span>
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    {selectedUser.online ? "Active Now • Panchthar, Nepal" : "Offline"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Call buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleStartCall("voice")}
-                  className="p-2 rounded-xl bg-white/80 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 hover:text-emerald-700 text-slate-600 dark:text-slate-200 transition-all border border-slate-200/80 dark:border-emerald-800/40 shadow-xs"
-                  title="Start Voice Call"
-                >
-                  <Phone size={15} />
-                </button>
-                <button
-                  onClick={() => handleStartCall("video")}
-                  className="p-2 rounded-xl bg-white/80 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 hover:text-emerald-700 text-slate-600 dark:text-slate-200 transition-all border border-slate-200/80 dark:border-emerald-800/40 shadow-xs"
-                  title="Start Video Call"
-                >
-                  <Video size={15} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Chat Message Stream */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-            {currentMessages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3">
-                <div className="w-16 h-16 rounded-3xl bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner border border-emerald-500/20 backdrop-blur-md">
-                  <MessageSquare size={30} />
-                </div>
-                <h3 className="font-bold text-slate-700 dark:text-slate-200 text-sm">
-                  Start chatting with {selectedUser?.displayName || selectedUser?.name || "your contact"}
-                </h3>
-                <p className="text-xs text-slate-400 max-w-sm">
-                  Connect directly with technicians and community friends in Phidim.
-                </p>
-                <div className="flex flex-wrap gap-2 justify-center pt-2">
-                  {[
-                    "Hello! Are you available in Phidim?",
-                    "Can you share service availability?",
-                    "Hello! Nice connecting with you.",
-                  ].map((preset, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSendMessage(preset)}
-                      className="text-xs px-3.5 py-1.5 rounded-full bg-white/80 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 hover:text-emerald-800 dark:hover:text-emerald-200 text-slate-700 dark:text-slate-300 transition-all font-medium border border-slate-200/80 dark:border-emerald-800/40 shadow-xs backdrop-blur-md"
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              currentMessages.map((msg, index) => {
-                const isMe =
-                  msg.sender === (currentUser?.email || currentUser?.id || "user") ||
-                  msg.sender === currentUser?.email ||
-                  msg.sender === "me";
-
-                return (
-                  <motion.div
-                    key={msg.id || index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                  >
-                    <div
-                      className={`max-w-[78%] sm:max-w-md px-4 py-2.5 rounded-2xl shadow-sm text-xs leading-relaxed ${
-                        isMe
-                          ? "bg-gradient-to-br from-[#0d872d]/95 to-[#096d24]/95 text-white rounded-br-none backdrop-blur-md border border-emerald-400/30 shadow-md"
-                          : "bg-white/90 dark:bg-[#082215]/90 text-slate-800 dark:text-slate-100 rounded-bl-none border border-slate-200/80 dark:border-emerald-800/40 backdrop-blur-md shadow-xs"
-                      }`}
-                    >
-                      <p className="break-words font-medium">{msg.text}</p>
-                      <div
-                        className={`flex items-center gap-1 justify-end text-[10px] mt-1 ${
-                          isMe ? "text-emerald-100" : "text-slate-400"
-                        }`}
-                      >
-                        <span>{msg.timestamp || "Just now"}</span>
-                        {isMe && <CheckCheck size={12} className="text-emerald-200" />}
+                      <div className="space-y-1.5 text-xs">
+                        <div className="p-2 rounded-xl bg-white/[0.04] border border-white/5 space-y-0.5">
+                          <p className="font-bold text-white text-[11px]">Technician Dispatched</p>
+                          <p className="text-[10px] text-neutral-400">
+                            Rajesh Tamang is on the way for CCTV Installation (#PS-9482).
+                          </p>
+                          <span className="text-[9px] text-neutral-500">5 mins ago</span>
+                        </div>
+                        <div className="p-2 rounded-xl hover:bg-white/[0.02] space-y-0.5">
+                          <p className="font-bold text-white text-[11px]">Seasonal Offer Active</p>
+                          <p className="text-[10px] text-neutral-400">
+                            20% Discount available on Plumbing & Sanitary services in Phidim!
+                          </p>
+                          <span className="text-[9px] text-neutral-500">1 hour ago</span>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-          {/* ===================================================================== */}
-          {/* 3. BOTTOM FLOATING PILL CHAT INPUT BAR (Glassmorphism)                */}
-          {/* ===================================================================== */}
-          <div className="p-4 sm:p-6 bg-transparent flex-shrink-0">
-            <div ref={attachMenuRef} className="relative max-w-4xl mx-auto w-full">
-              {/* Attachment Popover */}
-              <AnimatePresence>
-                {showAttachMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute left-4 bottom-14 bg-white/95 dark:bg-[#071911]/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-emerald-800/40 p-2 z-50 flex flex-col gap-1 w-48 text-xs font-semibold text-slate-700 dark:text-slate-200"
-                  >
-                    <button
-                      onClick={() => {
-                        setShowAttachMenu(false);
-                        handleSendMessage("📍 My Location: Phidim Bazar, Ward 1, Panchthar");
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-800 text-left"
-                    >
-                      <MapPin size={15} className="text-blue-600" /> Share Location
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAttachMenu(false);
-                        handleSendMessage("📸 [Photo Attachment]");
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-800 text-left"
-                    >
-                      <Camera size={15} className="text-amber-600" /> Attach Photo
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Floating Rounded Pill */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage();
-                }}
-                className="glass-effect-input rounded-full px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-3 transition-all focus-within:border-emerald-600 focus-within:shadow-[0_8px_32px_rgba(13,135,45,0.2)]"
+              {/* White Primary CTA Button: Book Service (Replicating Deposit button) */}
+              <button
+                onClick={() => setIsBookingModalOpen(true)}
+                className="bg-white text-black font-bold text-xs px-5 py-2.5 rounded-full hover:bg-neutral-200 active:scale-95 transition-all shadow-md flex items-center gap-1.5 flex-shrink-0"
               >
-                {/* Plus Icon */}
-                <button
-                  type="button"
-                  onClick={() => setShowAttachMenu(!showAttachMenu)}
-                  className="w-8 h-8 rounded-full bg-slate-100 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 hover:text-emerald-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors flex-shrink-0"
-                  title="Quick Actions"
-                >
-                  <Plus size={18} />
-                </button>
-
-                {/* Input Text Box */}
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Hello Start Chatting tother With Groups And Wth Friends"
-                  className="flex-1 bg-transparent text-xs sm:text-sm text-slate-800 dark:text-white placeholder-slate-400 outline-none font-medium truncate"
-                />
-
-                {/* Microphone Voice Button */}
-                <button
-                  type="button"
-                  onClick={handleToggleVoiceRecord}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
-                    isRecording
-                      ? "bg-rose-600 text-white animate-pulse"
-                      : "text-slate-500 hover:text-emerald-700 hover:bg-slate-100 dark:hover:bg-emerald-950/60"
-                  }`}
-                  title={isRecording ? "Stop & Send Voice Note" : "Record Voice Note"}
-                >
-                  <Mic size={18} />
-                </button>
-
-                {/* Send Button */}
-                <button
-                  type="submit"
-                  disabled={!inputText.trim()}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-                    inputText.trim()
-                      ? "bg-[#0d872d] text-white hover:bg-[#0b7025] shadow-sm hover:scale-105"
-                      : "text-slate-400 hover:text-slate-600 cursor-not-allowed"
-                  }`}
-                  title="Send Message"
-                >
-                  <Send size={16} />
-                </button>
-              </form>
+                <span>Book Service</span>
+              </button>
             </div>
           </div>
-        </main>
-      </div>
+        </div>
 
-      {/* ========================================================================= */}
-      {/* 4. MODALS (Offer, Settings)                                                */}
-      {/* ========================================================================= */}
+        {/* ========================================================================= */}
+        {/* MIDDLE ROW (3 CARDS EXACTLY REPLICATING IMAGE)                           */}
+        {/* ========================================================================= */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-4">
+          {/* 1. HERO FEATURE CARD ("Customise your Portfolio" in image) */}
+          <div className="xl:col-span-4 bg-[#14141c] border border-white/[0.07] rounded-3xl p-5 flex flex-col justify-between relative overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.3)]">
+            {/* Top decorative visual / safe box */}
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#1f1f2a] border border-white/10 flex items-center justify-center text-white shadow-inner">
+                <ShieldCheck size={20} className="text-white" />
+              </div>
+              {/* Subtle visual lines */}
+              <div className="space-y-1.5 opacity-40">
+                <div className="h-1.5 w-24 bg-white/20 rounded-full" />
+                <div className="h-1.5 w-16 bg-white/10 rounded-full" />
+              </div>
+            </div>
 
-      {/* Offer Promo Modal */}
-      <AnimatePresence>
-        {isOfferModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white/95 dark:bg-[#071911]/95 backdrop-blur-2xl rounded-3xl p-6 max-w-md w-full shadow-2xl border border-emerald-500/30 space-y-4 relative"
+            {/* Title and description */}
+            <div className="my-6 space-y-1.5">
+              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                Customise your Service Plan
+              </h3>
+              <p className="text-xs text-neutral-400 leading-relaxed">
+                A curated collection showcasing verified technicians in Panchthar for electrical, CCTV, plumbing & AC.
+              </p>
+            </div>
+
+            {/* White Action Pill Button */}
+            <button
+              onClick={() => setIsBookingModalOpen(true)}
+              className="w-full bg-white text-black font-bold text-xs py-2.5 rounded-full hover:bg-neutral-200 active:scale-[0.98] transition-all shadow-sm flex items-center justify-center"
             >
+              Book a Technician
+            </button>
+          </div>
+
+          {/* 2. ACTIVITY BAR CHART CARD ("Eth/USDT" in image) */}
+          <div className="xl:col-span-4 bg-[#14141c] border border-white/[0.07] rounded-3xl p-5 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.3)]">
+            {/* Header: Title + Time + Dots */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white">Phidim Service Activity</h3>
+                  <span className="text-[10px] text-neutral-400 font-medium">3:00 AM (NPT +5:45)</span>
+                </div>
+                <button className="text-neutral-500 hover:text-white p-1">
+                  <MoreHorizontal size={16} />
+                </button>
+              </div>
+
+              {/* Legend: Completed vs In Progress */}
+              <div className="flex items-center gap-4 text-[10px] font-semibold text-neutral-400 mb-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-white" />
+                  <span>Completed</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-neutral-600" />
+                  <span>In Progress</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Vertical Bar Chart (Replicating exact bars from image) */}
+            <div className="relative pt-2 pb-1">
+              {/* Left scale numbers */}
+              <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-[9px] text-neutral-600 font-mono select-none">
+                <span>16</span>
+                <span>15</span>
+                <span>14</span>
+              </div>
+
+              {/* Bars container */}
+              <div className="pl-6 grid grid-cols-7 gap-2 items-end h-28 border-b border-white/[0.08] pb-1">
+                {[
+                  { day: "Sun", completed: 75, progress: 40 },
+                  { day: "Mon", completed: 90, progress: 65 },
+                  { day: "Tue", completed: 82, progress: 50 },
+                  { day: "Wed", completed: 98, progress: 30 },
+                  { day: "Thu", completed: 70, progress: 60 },
+                  { day: "Fri", completed: 88, progress: 75 },
+                  { day: "Sat", completed: 92, progress: 45 },
+                ].map((item, idx) => (
+                  <div key={idx} className="flex flex-col items-center gap-1 h-full justify-end group">
+                    <div className="w-full max-w-[18px] flex flex-col gap-1 items-center h-full justify-end">
+                      {/* Bar 1: In Progress */}
+                      <div
+                        className="w-full bg-neutral-700 rounded-full transition-all group-hover:bg-neutral-600"
+                        style={{ height: `${item.progress * 0.35}%` }}
+                      />
+                      {/* Bar 2: Completed (Gradient white to grey) */}
+                      <div
+                        className="w-full bg-gradient-to-t from-neutral-400 to-white rounded-full transition-all group-hover:from-white group-hover:to-white shadow-sm"
+                        style={{ height: `${item.completed * 0.65}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-400 font-medium group-hover:text-white transition-colors">
+                      {item.day}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom Stat Row: 8.9% -> 98.9% with +2% badge */}
+            <div className="flex items-center justify-between pt-3">
+              <span className="text-2xl font-extrabold text-white tracking-tight">98.9%</span>
+              <div className="flex items-center gap-1 bg-[#1e1e28] text-white text-[11px] font-bold px-2.5 py-1 rounded-full border border-white/10">
+                <span className="text-emerald-400">↑ 2%</span>
+                <span className="text-neutral-400 text-[10px]">vs last Month</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. POPULAR SERVICES / TOKENS CARD ("Type of tokens in my portfolio" in image) */}
+          <div className="xl:col-span-4 bg-[#14141c] border border-white/[0.07] rounded-3xl p-5 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.3)]">
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">Popular Doorstep Services</h3>
+
+              {/* Category Pills (All market, Crypto, USDT, BNB -> All, CCTV, AC, Fiber) */}
+              <div className="flex items-center gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
+                {["All", "CCTV", "AC", "Fiber"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setServiceCategoryTab(tab)}
+                    className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                      serviceCategoryTab === tab
+                        ? "bg-white text-black shadow-sm"
+                        : "text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    {tab === "All" ? "All Services" : tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Service Rows */}
+              <div className="space-y-2.5">
+                {filteredPopularServices.slice(0, 3).map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-2.5 rounded-2xl bg-[#181822]/60 hover:bg-[#181822] border border-white/[0.05] flex items-center justify-between transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white">
+                          <Icon size={16} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white truncate max-w-[130px] sm:max-w-[170px]">
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] text-neutral-400 font-mono">{item.price}</p>
+                        </div>
+                      </div>
+
+                      {/* Dark Pill Action Button (Replicating Withdraw button) */}
+                      <button
+                        onClick={() => {
+                          setBookServiceId(item.id);
+                          setIsBookingModalOpen(true);
+                        }}
+                        className="px-3 py-1 rounded-xl bg-[#22222c] hover:bg-[#2c2c38] text-white text-[11px] font-semibold border border-white/10 transition-all shadow-xs"
+                      >
+                        Book
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick helper note */}
+            <div className="pt-2 text-[10px] text-neutral-500 flex items-center justify-between">
+              <span>Standard Panchthar doorstep rate</span>
+              <span className="text-white hover:underline cursor-pointer" onClick={() => setActiveTab("services")}>
+                View All →
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* BOTTOM ROW (WIDE ASSETS TABLE + RIGHT FEATURED CARD)                      */}
+        {/* ========================================================================= */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+          {/* 1. WIDE TABLE CARD ("Assets" in image) */}
+          <div className="xl:col-span-8 bg-[#14141c] border border-white/[0.07] rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.3)] space-y-4">
+            {/* Header: Title, Grid/List Toggles */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">Recent Service Requests</h3>
+              <div className="flex items-center gap-1 text-neutral-400">
+                <button
+                  onClick={() => setTableFilter("My Bookings")}
+                  className={`p-1.5 rounded-lg transition-colors ${tableFilter === "My Bookings" ? "text-white bg-white/10" : "hover:text-white"}`}
+                >
+                  <Layers size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Tabs Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                {["My Bookings", "Categories", "Emergency", "Completed"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setTableFilter(tab)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      tableFilter === tab
+                        ? "bg-[#22222d] text-white border border-white/10 shadow-xs"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Time Range Pills: 1D, 2W, 1M */}
+              <div className="flex items-center gap-1 self-end sm:self-auto bg-[#171722] p-1 rounded-xl border border-white/[0.06]">
+                {["1D", "2W", "1M"].map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                      timeRange === range ? "bg-white text-black" : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table Header & Rows */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-neutral-400 text-[11px] font-medium border-b border-white/[0.04]">
+                    <th className="pb-3 font-semibold">Service & ID ↓</th>
+                    <th className="pb-3 font-semibold">Fee (NPR) ↓</th>
+                    <th className="pb-3 font-semibold">Status ↓</th>
+                    <th className="pb-3 font-semibold">Specialist ↓</th>
+                    <th className="pb-3 font-semibold text-center">Chart ↓</th>
+                    <th className="pb-3 font-semibold text-right">Action ↓</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {filteredBookings.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-neutral-500">
+                        No service bookings found in this view.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredBookings.slice(0, 4).map((booking, idx) => {
+                      const isEmergency = booking.isEmergency;
+                      const isOnWay = booking.status === "On The Way";
+                      const isCompleted = booking.status === "Completed";
+
+                      return (
+                        <tr key={booking.id || idx} className="hover:bg-white/[0.02] transition-colors group">
+                          {/* 1. Service & ID */}
+                          <td className="py-3.5 pr-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white flex-shrink-0">
+                                <Wrench size={13} />
+                              </div>
+                              <div className="min-w-0 max-w-[150px] sm:max-w-[180px]">
+                                <p className="font-bold text-white truncate text-xs">{booking.serviceName}</p>
+                                <p className="text-[10px] text-neutral-400 font-mono">{booking.id}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 2. Price */}
+                          <td className="py-3.5 font-bold text-white font-mono">{booking.amount || "Rs. 1,500"}</td>
+
+                          {/* 3. Status Badge */}
+                          <td className="py-3.5">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                                isOnWay
+                                  ? "bg-amber-500/10 text-amber-300 border-amber-500/30 animate-pulse"
+                                  : isCompleted
+                                  ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                                  : "bg-blue-500/10 text-blue-300 border-blue-500/30"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isOnWay ? "bg-amber-400" : isCompleted ? "bg-emerald-400" : "bg-blue-400"
+                                }`}
+                              />
+                              {booking.status || "Assigned"}
+                            </span>
+                          </td>
+
+                          {/* 4. Specialist / Area */}
+                          <td className="py-3.5 text-neutral-300 text-[11px]">
+                            {booking.technician?.name || "Rajesh Tamang"}
+                            <span className="block text-[10px] text-neutral-400">Phidim-1</span>
+                          </td>
+
+                          {/* 5. Trend Chart (SVG Sparkline waveform matching image!) */}
+                          <td className="py-3.5 text-center">
+                            <svg className="w-20 h-6 mx-auto stroke-white/60 fill-none" viewBox="0 0 100 24">
+                              <path
+                                d={
+                                  idx === 0
+                                    ? "M0,18 Q25,2 50,14 T100,6"
+                                    : idx === 1
+                                    ? "M0,8 Q25,20 50,6 T100,16"
+                                    : idx === 2
+                                    ? "M0,14 Q25,6 50,18 T100,8"
+                                    : "M0,16 Q25,12 50,4 T100,10"
+                                }
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </td>
+
+                          {/* 6. Action Button */}
+                          <td className="py-3.5 text-right">
+                            {isOnWay ? (
+                              <button
+                                onClick={() => handleOpenTracking(booking)}
+                                className="px-3 py-1 rounded-xl bg-white text-black text-[11px] font-bold hover:bg-neutral-200 transition-all shadow-xs"
+                              >
+                                Track
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenChat(booking.technician)}
+                                className="px-3 py-1 rounded-xl bg-[#22222d] hover:bg-[#2d2d3b] text-neutral-300 hover:text-white text-[11px] font-semibold border border-white/10 transition-all"
+                              >
+                                Chat
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 2. FEATURED CARD ("Monero Xmr" in image) */}
+          <div className="xl:col-span-4 bg-[#14141c] border border-white/[0.07] rounded-3xl p-5 flex flex-col justify-between shadow-[0_8px_30px_rgb(0,0,0,0.3)]">
+            {/* Top row with Circle Icon + Top Right Arrow */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-10 h-10 rounded-full bg-[#20202c] border border-white/10 flex items-center justify-center text-white">
+                  <ShieldCheck size={20} className="text-white" />
+                </div>
+                <button
+                  onClick={() => handleOpenChat(featuredTech)}
+                  className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/15 text-white flex items-center justify-center transition-colors"
+                  title="Direct Action"
+                >
+                  <ArrowUpRight size={16} />
+                </button>
+              </div>
+
+              {/* Title & Subtitle */}
+              <div className="space-y-0.5 mb-6">
+                <h3 className="text-base font-bold text-white">{featuredTech.name}</h3>
+                <p className="text-xs text-neutral-400">{featuredTech.title}</p>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-[10px] text-emerald-400 font-semibold">{featuredTech.status}</span>
+                </div>
+              </div>
+
+              {/* Pricing & Volume/Rating */}
+              <div className="space-y-2 border-t border-white/[0.06] pt-4">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-400">Starting Visit Fee</span>
+                  <span className="font-bold text-white font-mono">{featuredTech.price}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-400">Rating & Reviews</span>
+                  <span className="font-bold text-white">{featuredTech.rating}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom 2 Buttons (Transfer / Trade -> Direct Call / Instant Book) */}
+            <div className="grid grid-cols-2 gap-2.5 pt-6">
               <button
-                onClick={() => setIsOfferModalOpen(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 dark:bg-emerald-950/60 hover:bg-slate-200 text-slate-500"
+                onClick={() => handleOpenChat(featuredTech)}
+                className="w-full py-2.5 rounded-2xl bg-[#22222d] hover:bg-[#2b2b3a] text-white text-xs font-semibold border border-white/10 transition-all flex items-center justify-center gap-1.5"
               >
-                <X size={18} />
+                <Phone size={13} />
+                <span>Call / Chat</span>
               </button>
 
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
-                  <Droplet size={24} />
+              <button
+                onClick={() => {
+                  setBookServiceId("srv-cctv-install");
+                  setIsBookingModalOpen(true);
+                }}
+                className="w-full py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all flex items-center justify-center shadow-sm active:scale-95"
+              >
+                Instant Book
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: NEW SERVICE BOOKING MODAL                                        */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isBookingModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-lg bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl space-y-4 text-white"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                    <CalendarPlus size={18} />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Book Doorstep Technician</h3>
                 </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Special Promo</span>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">20% Off Plumbing Services</h3>
+                <button
+                  onClick={() => setIsBookingModalOpen(false)}
+                  className="p-1 rounded-xl text-neutral-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmBooking} className="space-y-3.5 text-xs">
+                {/* Service Picker */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-300">Select Service Required</label>
+                  <select
+                    value={bookServiceId}
+                    onChange={(e) => setBookServiceId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
+                  >
+                    {SERVICES.map((srv) => (
+                      <option key={srv.id} value={srv.id} className="bg-[#14141e] text-white">
+                        {srv.name} — Rs. {srv.basePrice?.toLocaleString()} ({srv.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Customer Address in Phidim */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-300">Service Location in Phidim</label>
+                  <div className="relative">
+                    <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      required
+                      value={bookAddress}
+                      onChange={(e) => setBookAddress(e.target.value)}
+                      placeholder="e.g. Phidim-1, Main Bazar, near Clock Tower"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
+                    />
+                  </div>
+                </div>
+
+                {/* Date & Time Slot */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-neutral-300">Preferred Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={bookDate}
+                      onChange={(e) => setBookDate(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-neutral-300">Time Slot</label>
+                    <select
+                      value={bookTimeSlot}
+                      onChange={(e) => setBookTimeSlot(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
+                    >
+                      <option value="Morning (09:00 AM - 12:00 PM)">Morning (09:00 AM - 12:00 PM)</option>
+                      <option value="Afternoon (01:00 PM - 04:00 PM)">Afternoon (01:00 PM - 04:00 PM)</option>
+                      <option value="Evening (04:00 PM - 07:00 PM)">Evening (04:00 PM - 07:00 PM)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Problem Description */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-neutral-300">Specific Issue / Landmark Notes</label>
+                  <textarea
+                    rows={2}
+                    value={bookNotes}
+                    onChange={(e) => setBookNotes(e.target.value)}
+                    placeholder="Briefly describe what needs repair..."
+                    className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
+                  />
+                </div>
+
+                {/* Emergency Toggle */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="emergency-check"
+                    checked={bookIsEmergency}
+                    onChange={(e) => setBookIsEmergency(e.target.checked)}
+                    className="w-4 h-4 rounded accent-rose-500 cursor-pointer"
+                  />
+                  <label htmlFor="emergency-check" className="text-xs text-neutral-300 cursor-pointer">
+                    Urgent Emergency Dispatch (Technician departs immediately)
+                  </label>
+                </div>
+
+                {/* Confirm Button */}
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all shadow-md active:scale-95"
+                  >
+                    Confirm Doorstep Booking
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: LIVE TECHNICIAN TRACKER MODAL                                    */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isTrackingModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl space-y-4 text-white"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Navigation size={18} className="text-emerald-400 animate-pulse" />
+                  <h3 className="text-sm font-bold text-white">Live Field Technician Tracker</h3>
+                </div>
+                <button onClick={() => setIsTrackingModalOpen(false)} className="text-neutral-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Technician Profile */}
+              <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={selectedBookingForTracking?.technician?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80"}
+                    alt="Technician"
+                    className="w-10 h-10 rounded-full object-cover border border-white/20"
+                  />
+                  <div>
+                    <h4 className="text-xs font-bold text-white">
+                      {selectedBookingForTracking?.technician?.name || "Rajesh Tamang"}
+                    </h4>
+                    <p className="text-[10px] text-neutral-400">
+                      {selectedBookingForTracking?.technician?.specialty || "CCTV & Electrical Lead"}
+                    </p>
+                  </div>
+                </div>
+                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 animate-pulse">
+                  On The Way
+                </span>
+              </div>
+
+              {/* Route Progress in Phidim */}
+              <div className="space-y-3 p-3.5 rounded-2xl bg-[#1a1a26] border border-white/10 text-xs">
+                <div className="flex justify-between text-neutral-400 text-[11px]">
+                  <span>Estimated Arrival:</span>
+                  <span className="text-white font-bold">12 - 18 Mins</span>
+                </div>
+                <div className="w-full bg-neutral-800 rounded-full h-2 overflow-hidden">
+                  <div className="bg-emerald-400 h-2 rounded-full w-3/4 animate-pulse" />
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-neutral-300">
+                  <MapPin size={14} className="text-emerald-400" />
+                  <span>Approaching Phidim-1, Main Road</span>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Enjoy a flat <strong>20% discount</strong> on all plumbing services in Phidim for the next 10 days!
-              </p>
-
-              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/40 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Promo Code</p>
-                  <p className="text-sm font-mono font-black text-emerald-700 dark:text-emerald-300">PLUMB20</p>
-                </div>
+              {/* Call or Chat CTA */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   onClick={() => {
-                    navigator.clipboard?.writeText("PLUMB20");
-                    showToast("Promo code PLUMB20 copied!");
+                    setIsTrackingModalOpen(false);
+                    handleOpenChat(selectedBookingForTracking?.technician);
                   }}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all hover:scale-102"
+                  className="py-2.5 rounded-xl bg-[#22222e] hover:bg-[#2c2c3b] text-white text-xs font-semibold border border-white/10 transition-all flex items-center justify-center gap-1.5"
                 >
-                  Copy Code
+                  <MessageSquare size={14} />
+                  <span>Send Message</span>
+                </button>
+                <a
+                  href={`tel:${selectedBookingForTracking?.technician?.phone || "+9779842109842"}`}
+                  className="py-2.5 rounded-full bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Phone size={14} />
+                  <span>Call Technician</span>
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: DIRECT CHAT SLIDE-OVER DRAWER                                   */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isChatDrawerOpen && (
+          <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 250 }}
+              className="w-full max-w-md h-full bg-[#13131c] border-l border-white/15 p-4 flex flex-col justify-between shadow-2xl text-white"
+            >
+              {/* Chat Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative">
+                    <img
+                      src={activeChatPartner?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80"}
+                      alt={activeChatPartner?.name}
+                      className="w-9 h-9 rounded-full object-cover border border-white/20"
+                    />
+                    <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#13131c]" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{activeChatPartner?.displayName || activeChatPartner?.name}</h4>
+                    <p className="text-[10px] text-neutral-400 font-medium">Technician On Duty • Phidim</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => startCall && startCall(activeChatPartner, "video")}
+                    className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/15 text-neutral-300"
+                    title="Video Call"
+                  >
+                    <Video size={14} />
+                  </button>
+                  <button
+                    onClick={() => setIsChatDrawerOpen(false)}
+                    className="p-2 rounded-xl text-neutral-400 hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Chat Messages Stream */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1 text-xs">
+                {chatMessages.map((msg, i) => {
+                  const isMe = msg.sender === currentUser.email || msg.sender === "user";
+                  return (
+                    <div key={msg.id || i} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[80%] p-3 rounded-2xl space-y-1 ${
+                          isMe
+                            ? "bg-white text-black font-medium shadow-sm"
+                            : "bg-[#1f1f2c] text-white border border-white/10"
+                        }`}
+                      >
+                        <p className="text-xs leading-relaxed">{msg.text}</p>
+                        <span className={`text-[9px] block ${isMe ? "text-neutral-600" : "text-neutral-400"}`}>
+                          {msg.timestamp}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={chatMessagesEndRef} />
+              </div>
+
+              {/* Chat Input */}
+              <div className="pt-2 border-t border-white/10 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={chatInputText}
+                  onChange={(e) => setChatInputText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                  placeholder="Type a message to technician..."
+                  className="flex-1 bg-[#1c1c28] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-white/40"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="p-2.5 rounded-xl bg-white text-black hover:bg-neutral-200 transition-colors"
+                >
+                  <Send size={15} />
                 </button>
               </div>
             </motion.div>
@@ -1215,29 +1491,99 @@ export default function UserDashboardNewUI() {
         )}
       </AnimatePresence>
 
-      {/* Account Settings Modal */}
+      {/* ========================================================================= */}
+      {/* MODAL 4: PHIDIM SMART AI ASSISTANT DIALOG                                */}
+      {/* ========================================================================= */}
       <AnimatePresence>
-        {isSettingsModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
+        {isAiModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white/95 dark:bg-[#071911]/95 backdrop-blur-2xl rounded-3xl p-6 max-w-xl w-full shadow-2xl border border-emerald-500/30 space-y-4 max-h-[90vh] overflow-y-auto relative"
+              className="w-full max-w-md bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl space-y-4 text-white"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/40">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Settings size={18} className="text-emerald-600 dark:text-emerald-400" /> Account Settings
-                </h3>
-                <button
-                  onClick={() => setIsSettingsModalOpen(false)}
-                  className="p-1.5 rounded-full bg-slate-100 dark:bg-emerald-950/60 hover:bg-slate-200 text-slate-500"
-                >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center border border-amber-400/30">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Phidim Smart Assistant</h3>
+                    <p className="text-[10px] text-neutral-400">Doorstep repair help & technician matching</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsAiModalOpen(false)} className="text-neutral-400 hover:text-white">
                   <X size={18} />
                 </button>
               </div>
 
-              <AccountSettings onShowToast={showToast} />
+              <div className="p-3.5 rounded-2xl bg-[#1b1b26] border border-white/10 space-y-2 text-xs">
+                <p className="text-neutral-300 leading-relaxed">
+                  How can we help you in Phidim today? Choose a recommendation or book instantly:
+                </p>
+                <div className="space-y-1.5 pt-1">
+                  {[
+                    "My Split AC is leaking water or not cooling",
+                    "Optical fiber line snapped or Wi-Fi red light blinking",
+                    "Need 4-Camera HD CCTV installation for home or store",
+                    "Emergency sanitary pipe burst or water blockage",
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setIsAiModalOpen(false);
+                        setBookNotes(preset);
+                        setIsBookingModalOpen(true);
+                      }}
+                      className="w-full text-left p-2 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/5 text-[11px] text-neutral-200 transition-colors"
+                    >
+                      → {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  onClick={() => {
+                    setIsAiModalOpen(false);
+                    setIsBookingModalOpen(true);
+                  }}
+                  className="w-full py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all"
+                >
+                  Open Booking Form
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: ACCOUNT SETTINGS MODAL                                          */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isSettingsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl text-white max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+                <h3 className="text-base font-bold text-white">Account Settings & Profile</h3>
+                <button onClick={() => setIsSettingsModalOpen(false)} className="text-neutral-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+              <AccountSettings
+                onShowToast={(msg) => {
+                  showToast(msg);
+                  setIsSettingsModalOpen(false);
+                }}
+              />
             </motion.div>
           </div>
         )}
@@ -1245,4 +1591,3 @@ export default function UserDashboardNewUI() {
     </div>
   );
 }
-

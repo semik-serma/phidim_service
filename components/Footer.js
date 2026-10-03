@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Phone, Mail, MapPin, ShieldCheck, Facebook, Youtube, Linkedin, ExternalLink } from "lucide-react";
+import { Phone, Mail, MapPin, ShieldCheck, ExternalLink } from "lucide-react";
+import { FaYoutube, FaFacebookF, FaLinkedinIn } from "react-icons/fa6";
 import { RopePullingDevBadge } from "./RopePullingDevBadge";
 
 export const Footer = ({
@@ -57,34 +58,34 @@ export const Footer = ({
               <span>100% Certified Field Technicians</span>
             </div>
             
-            <div className="pt-2 flex items-center gap-2">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Connect:</span>
+            <div className="pt-3 flex items-center gap-3">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Connect:</span>
               <a
                 href="https://www.facebook.com/dhanraj.serma.14"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-7 h-7 rounded-full bg-[#1877f2] text-white flex items-center justify-center hover:scale-110 transition-transform"
+                className="w-9 h-9 rounded-full bg-[#1877f2] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-sm hover:shadow-md hover:shadow-blue-500/30"
                 title="Facebook: Dhanraj Serma"
               >
-                <Facebook className="w-3.5 h-3.5 fill-current" />
+                <FaFacebookF className="w-4 h-4" />
               </a>
               <a
                 href="https://www.youtube.com/@semikserma"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-7 h-7 rounded-full bg-[#ff0000] text-white flex items-center justify-center hover:scale-110 transition-transform"
+                className="w-9.5 h-9.5 rounded-full bg-[#ff0000] hover:bg-[#e60000] text-white flex items-center justify-center hover:scale-115 active:scale-95 transition-all shadow-md hover:shadow-lg hover:shadow-red-600/40 ring-2 ring-red-500/20"
                 title="YouTube: @semikserma"
               >
-                <Youtube className="w-3.5 h-3.5 fill-current" />
+                <FaYoutube className="w-5 h-5" />
               </a>
               <a
                 href="https://www.linkedin.com/in/semik-serma-8263a3391/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-7 h-7 rounded-full bg-[#0a66c2] text-white flex items-center justify-center hover:scale-110 transition-transform"
+                className="w-9 h-9 rounded-full bg-[#0a66c2] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-sm hover:shadow-md hover:shadow-sky-500/30"
                 title="LinkedIn: Semik Serma"
               >
-                <Linkedin className="w-3.5 h-3.5 fill-current" />
+                <FaLinkedinIn className="w-4 h-4" />
               </a>
             </div>
           </div>
@@ -93,6 +94,16 @@ export const Footer = ({
           <div className="space-y-3">
             <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">Navigation & Locations</h4>
             <ul className="space-y-2 text-xs">
+              <li>
+                <Link href="/battery-runtime-calculator" className="hover:text-green-400 transition-colors text-green-400 font-bold block">
+                  ⚡ Battery Runtime Calculator
+                </Link>
+              </li>
+              <li>
+                <Link href="/nepal-electricity-bill-calculator" className="hover:text-green-400 transition-colors text-emerald-400 font-bold block">
+                  🇳🇵 Nepal Electricity Bill Calculator
+                </Link>
+              </li>
               <li>
                 <button onClick={() => handleSelectCategory("ALL")} className="hover:text-green-400 transition-colors cursor-pointer">
                   Our Technical Services

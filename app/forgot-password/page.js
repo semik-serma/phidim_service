@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Mail, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { fetchWithFailover } from '@/lib/apiClient';
+import { triggerBackendWarning, BACKEND_READY } from '@/lib/backendWarning';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -15,6 +16,10 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setError('');
     if (!email.trim()) {
       setError('Please enter your email address.');

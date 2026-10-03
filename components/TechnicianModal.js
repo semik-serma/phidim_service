@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Wrench, HardHat, MapPin, Cable } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export const TechnicianModal = ({ isOpen, onClose }) => {
   const { login, register } = useAuth();
@@ -15,6 +16,10 @@ export const TechnicianModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (!techIdOrPhone || !password) return;
     try {
       if (mode === "LOGIN") {

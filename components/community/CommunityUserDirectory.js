@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithFailover } from "@/lib/apiClient";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 import {
   subscribeFriendsStore,
   getFriendStatus,
@@ -257,21 +258,37 @@ export function CommunityUserDirectory({ onStartChat, onStartCall, onShowToast }
   const adminCount = baseUsers.filter((u) => u.role === "ADMIN").length;
 
   const handleSendRequest = (targetUser) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     sendFriendRequest({ senderUser: currentUser, receiverUser: targetUser });
     if (onShowToast) onShowToast(`Friend request sent to ${targetUser.displayName || targetUser.name}!`);
   };
 
   const handleCancelRequest = (targetUser) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     declineFriendRequest(currentUser?.email, targetUser.email);
     if (onShowToast) onShowToast(`Cancelled request to ${targetUser.displayName || targetUser.name}.`);
   };
 
   const handleAcceptRequest = (targetUser) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     acceptFriendRequest(currentUser?.email, targetUser.email);
     if (onShowToast) onShowToast(`You are now friends with ${targetUser.displayName || targetUser.name}! 🎉`);
   };
 
   const handleDeclineRequest = (targetUser) => {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     declineFriendRequest(currentUser?.email, targetUser.email);
     if (onShowToast) onShowToast(`Declined request from ${targetUser.displayName || targetUser.name}.`);
   };

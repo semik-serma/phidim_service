@@ -3,6 +3,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toast";
 import { AuthProvider } from "@/context/AuthContext";
 import { CallProvider } from "@/components/calls/CallProvider";
+import PersistentGoogleMusic from "@/components/music/PersistentGoogleMusic";
+import GlobalBackendWarning from "@/components/common/GlobalBackendWarning";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -153,6 +155,12 @@ export const metadata = {
   }
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${inter.variable} ${poppins.variable} ${dmSans.variable} font-site`} suppressHydrationWarning>
@@ -299,6 +307,8 @@ export default function RootLayout({ children }) {
           <CallProvider>
             {children}
             <Toaster />
+            <PersistentGoogleMusic />
+            <GlobalBackendWarning />
           </CallProvider>
         </AuthProvider>
       </body>

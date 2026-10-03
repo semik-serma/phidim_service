@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createBooking } from "@/lib/bookingStore";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 export function QuickBookingCard({ onConfirmBooking }) {
   const { user } = useAuth();
@@ -24,6 +25,10 @@ export function QuickBookingCard({ onConfirmBooking }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
 
     const techName = technician === "Any Available Technician" ? "Rajesh Tamang" : technician.split(" (")[0];
 

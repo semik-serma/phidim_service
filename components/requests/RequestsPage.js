@@ -6,6 +6,7 @@ import { SERVICE_REQUEST_STATUSES } from "@/lib/requests";
 import { useCall } from "@/components/calls/CallProvider";
 import { PhoneCall } from "lucide-react";
 import { fetchWithFailover } from "@/lib/apiClient";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 /**
  * Client rendering for the /requests page. All data comes from the
@@ -43,6 +44,10 @@ export default function RequestsPage({ requests = [], userRole }) {
 
   async function handleCreate(e) {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     if (!form.title.trim()) return;
     setBusy(true);
     setMessage("");
@@ -66,6 +71,10 @@ export default function RequestsPage({ requests = [], userRole }) {
   }
 
   async function handleStatusChange(requestId, status) {
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {

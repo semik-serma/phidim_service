@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
 import { createBooking } from "@/lib/bookingStore";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 import { SERVICES } from "@/data/services";
 import Link from "next/link";
 
@@ -79,6 +80,10 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!BACKEND_READY) {
+      triggerBackendWarning();
+      return;
+    }
 
     const saved = createBooking({
       serviceName: activeService.name,

@@ -12,6 +12,7 @@ import {
   subscribeCallSignaling,
   stopRingtoneSound,
 } from "@/lib/callSignaling";
+import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 
 const CallContext = createContext({
   startCall: () => {},
@@ -131,6 +132,10 @@ export function CallProvider({ children }) {
   // Start an Outgoing Call
   const startCall = useCallback(
     async (targetPerson, type = "video") => {
+      if (!BACKEND_READY) {
+        triggerBackendWarning();
+        return;
+      }
       if (!targetPerson) return;
 
       const session = await initiateCall({
