@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   KeyRound,
   X,
+  CalendarCheck,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/components/ui/toast';
@@ -123,6 +124,8 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
+  const [showBookingPrompt, setShowBookingPrompt] = useState(false);
 
   // Dynamic role tabs (shows ADMIN tab only when unlocked/selected)
   const tabsToRender = useMemo(() => {
@@ -146,6 +149,29 @@ export default function LoginPage() {
       setAdminPassword('');
     } else if (queryRole && queryRole.toUpperCase() === 'TECHNICIAN') {
       setRole('TECHNICIAN');
+    }
+
+    // Check if user was redirected because they clicked "Like" or "Book Service"
+    const prompt = params.get('prompt') || params.get('reason');
+    let fromLikeRedirect = false;
+    let fromBookingRedirect = false;
+    try {
+      if (sessionStorage.getItem('phidim_like_redirect_prompt') === 'true') {
+        fromLikeRedirect = true;
+        sessionStorage.removeItem('phidim_like_redirect_prompt');
+      }
+      if (sessionStorage.getItem('phidim_booking_redirect_prompt') === 'true') {
+        fromBookingRedirect = true;
+        sessionStorage.removeItem('phidim_booking_redirect_prompt');
+      }
+    } catch (e) {}
+
+    if (prompt === 'booking' || fromBookingRedirect) {
+      setShowBookingPrompt(true);
+      toast.warning('Login required to book a service!', 'Please log in or register your account to book a technician.');
+    } else if (prompt === 'register' || prompt === 'like' || fromLikeRedirect) {
+      setShowRegisterPrompt(true);
+      toast.warning('First you need to register!', 'Please create an account or sign in to continue.');
     }
 
     const oauthError = params.get('error');
@@ -538,6 +564,62 @@ export default function LoginPage() {
             ))}
           </div>
 
+          {/* Booking Notice when redirected from Book Service action */}
+          {showBookingPrompt && (
+            <div
+              className="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-950 dark:text-emerald-200 text-xs font-semibold animate-in fade-in duration-200 shadow-xs mb-3"
+              role="status"
+            >
+              <div className="flex items-start gap-2.5">
+                <CalendarCheck className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                <div>
+                  <span className="font-bold text-emerald-950 dark:text-emerald-100 block">
+                    Login required to book a service!
+                  </span>
+                  <span className="text-emerald-800 dark:text-emerald-300 text-[11px] leading-tight block mt-0.5 font-normal">
+                    Please log in or register your account to schedule an on-site technician in Phidim.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBookingPrompt(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                aria-label="Dismiss notice"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Registration Notice when redirected from Like action */}
+          {showRegisterPrompt && (
+            <div
+              className="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-semibold animate-in fade-in duration-200 shadow-xs"
+              role="status"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                <div>
+                  <span className="font-bold text-amber-900 dark:text-amber-100 block">
+                    First you need to register!
+                  </span>
+                  <span className="text-amber-800 dark:text-amber-300 text-[11px] leading-tight block mt-0.5 font-normal">
+                    Please log in or create an account to like services on Phidim Service.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRegisterPrompt(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                aria-label="Dismiss notice"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Server Error Alert */}
           {serverError && (
             <div
@@ -636,6 +718,18 @@ export default function LoginPage() {
                   </span>
                 )}
               </button>
+
+              <div className="text-center pt-1">
+                <p className="text-xs text-slate-500 font-medium">
+                  Don&apos;t have an account?{' '}
+                  <Link
+                    href="/register"
+                    className="text-emerald-600 font-extrabold hover:underline"
+                  >
+                    Register here
+                  </Link>
+                </p>
+              </div>
             </form>
           )}
 

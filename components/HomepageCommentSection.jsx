@@ -24,7 +24,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithFailover } from "@/lib/apiClient";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedLike } from "@/lib/backendWarning";
 import {
   fetchDjangoComments,
   postDjangoComment,
@@ -455,6 +455,10 @@ export function HomepageCommentSection() {
   };
 
   const handleReaction = async (id, type) => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedLike(router);
+      return;
+    }
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;

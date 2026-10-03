@@ -4,9 +4,11 @@ import { useState } from "react";
 import { TopBar } from "./TopBar";
 import { Header } from "./Header";
 import { Navbar } from "./Navbar";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedLike } from "@/lib/backendWarning";
+import { useAuth } from "@/context/AuthContext";
 
 export function SeoHeaderNavbar({ activeTabName = "ALL SERVICES" }) {
+  const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [likeCount, setLikeCount] = useState(() => {
@@ -46,6 +48,10 @@ export function SeoHeaderNavbar({ activeTabName = "ALL SERVICES" }) {
   };
 
   const handleIncrementLikes = () => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedLike();
+      return;
+    }
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;

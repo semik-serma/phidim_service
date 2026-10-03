@@ -11,8 +11,11 @@ import {
 import { ElectricalCalculator } from "./ElectricalCalculator";
 import { BatteryRuntimeSeoContent } from "./BatteryRuntimeSeoContent";
 import { ServiceBookingModal } from "@/components/ServiceBookingModal";
+import { useAuth } from "@/context/AuthContext";
+import { handleUnauthenticatedBooking } from "@/lib/backendWarning";
 
 export function CalculatorPageClient() {
+  const { isAuthenticated } = useAuth();
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -24,6 +27,10 @@ export function CalculatorPageClient() {
   }, []);
 
   const handleBookService = (service) => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedBooking();
+      return;
+    }
     setSelectedServiceForBooking(service);
     setIsBookingOpen(true);
   };

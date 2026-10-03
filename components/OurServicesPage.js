@@ -26,6 +26,8 @@ import {
   Sparkles
 } from "lucide-react";
 import { SERVICES } from "@/data/services";
+import { useAuth } from "@/context/AuthContext";
+import { handleUnauthenticatedBooking } from "@/lib/backendWarning";
 
 export const OurServicesPage = ({
   selectedCategory: propCategory = "ALL",
@@ -36,6 +38,7 @@ export const OurServicesPage = ({
   onNavigateContact,
   onBookService,
 }) => {
+  const { isAuthenticated } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState(propCategory || "ALL");
   const [searchQuery, setSearchQuery] = useState(propSearch || "");
 
@@ -264,6 +267,10 @@ export const OurServicesPage = ({
   }, [selectedCategory, searchQuery]);
 
   const handleBookServiceAction = (service) => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedBooking();
+      return;
+    }
     const matched = SERVICES.find(
       (s) =>
         s.category.toLowerCase().includes(service.id.toLowerCase()) ||

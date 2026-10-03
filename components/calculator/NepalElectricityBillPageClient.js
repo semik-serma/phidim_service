@@ -11,8 +11,11 @@ import {
 import { ElectricalCalculator } from "./ElectricalCalculator";
 import { NepalElectricityBillSeoContent } from "./NepalElectricityBillSeoContent";
 import { ServiceBookingModal } from "@/components/ServiceBookingModal";
+import { useAuth } from "@/context/AuthContext";
+import { handleUnauthenticatedBooking } from "@/lib/backendWarning";
 
 export function NepalElectricityBillPageClient() {
+  const { isAuthenticated } = useAuth();
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -23,6 +26,10 @@ export function NepalElectricityBillPageClient() {
   }, []);
 
   const handleBookService = (service) => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedBooking();
+      return;
+    }
     setSelectedServiceForBooking(service);
     setIsBookingOpen(true);
   };

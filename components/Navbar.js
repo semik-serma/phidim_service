@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Menu,
   X,
@@ -32,7 +33,7 @@ import { SERVICE_CATEGORIES } from "../data/services";
 import { formatCount } from "../utils/formatCount";
 import { useAuth } from "@/context/AuthContext";
 import { RopePullingDevBadge } from "./RopePullingDevBadge";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedLike } from "@/lib/backendWarning";
 
 export const Navbar = ({
   activeTab,
@@ -49,12 +50,17 @@ export const Navbar = ({
   onOpenAuth,
   onSearchSubmit
 }) => {
+  const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hasLiked, setHasLiked] = useState(false);
 
   const handleLikeClick = () => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedLike(router);
+      return;
+    }
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;

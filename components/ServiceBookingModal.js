@@ -18,12 +18,12 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
 import { createBooking } from "@/lib/bookingStore";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedBooking } from "@/lib/backendWarning";
 import { SERVICES } from "@/data/services";
 import Link from "next/link";
 
 export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess }) {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [currentService, setCurrentService] = useState(service || SERVICES[0]);
 
@@ -80,6 +80,11 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      if (onClose) onClose();
+      handleUnauthenticatedBooking();
+      return;
+    }
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;

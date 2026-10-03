@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedLike } from "@/lib/backendWarning";
 
 const INITIAL_ARTICLES = [
   {
@@ -101,7 +101,7 @@ Key factors for a reliable WiFi setup:
 ];
 
 export function ArticlesFeed({ onOpenCreateModal, onStartChat, onStartCall }) {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [articles, setArticles] = useState(INITIAL_ARTICLES);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -126,6 +126,10 @@ export function ArticlesFeed({ onOpenCreateModal, onStartChat, onStartCall }) {
   };
 
   const toggleLike = (articleId) => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedLike();
+      return;
+    }
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;

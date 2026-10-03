@@ -23,11 +23,13 @@ import { ServiceBookingModal } from "./components/ServiceBookingModal";
 import { LanNetworkingPage } from "./components/LanNetworkingPage";
 import { ContactUsPage } from "./components/ContactUsPage";
 import { ElectricalCalculator } from "./components/calculator/ElectricalCalculator";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedLike, handleUnauthenticatedBooking } from "@/lib/backendWarning";
+import { useAuth } from "@/context/AuthContext";
 import { Footer } from "./components/Footer";
 import { SERVICES } from "@/data/services";
 
 export default function App() {
+  const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState("HOME");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -111,6 +113,10 @@ export default function App() {
   }, []);
 
   const handleIncrementLikes = () => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedLike();
+      return;
+    }
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;
@@ -141,6 +147,10 @@ export default function App() {
   };
 
   const handleBookService = (service) => {
+    if (!isAuthenticated) {
+      handleUnauthenticatedBooking();
+      return;
+    }
     setSelectedServiceForBooking(service);
     setIsBookingOpen(true);
   };

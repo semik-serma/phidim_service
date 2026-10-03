@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, ArrowLeft, CheckCircle2, Sparkles, Wrench, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, ArrowLeft, CheckCircle2, Sparkles, Wrench, AlertCircle, X } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { useAuth } from '@/context/AuthContext';
 import { triggerBackendWarning, BACKEND_READY } from '@/lib/backendWarning';
@@ -26,6 +26,34 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
+  const [showBookingPrompt, setShowBookingPrompt] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const prompt = params.get('prompt') || params.get('reason');
+    let fromLikeRedirect = false;
+    let fromBookingRedirect = false;
+    try {
+      if (sessionStorage.getItem('phidim_like_redirect_prompt') === 'true') {
+        fromLikeRedirect = true;
+        sessionStorage.removeItem('phidim_like_redirect_prompt');
+      }
+      if (sessionStorage.getItem('phidim_booking_redirect_prompt') === 'true') {
+        fromBookingRedirect = true;
+        sessionStorage.removeItem('phidim_booking_redirect_prompt');
+      }
+    } catch (e) {}
+
+    if (prompt === 'booking' || fromBookingRedirect) {
+      setShowBookingPrompt(true);
+      toast.warning('Registration required to book a service!', 'Please create an account to book your service appointment.');
+    } else if (prompt === 'register' || prompt === 'like' || fromLikeRedirect) {
+      setShowRegisterPrompt(true);
+      toast.warning('First you need to register!', 'Please create an account to like services.');
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -249,10 +277,62 @@ export default function RegisterPage() {
             <h2 className="text-2xl sm:text-3xl font-black text-[#111827] tracking-tight">
               Create Account
             </h2>
-<p className="text-sm text-[#6B7280] mt-1">
+            <p className="text-sm text-[#6B7280] mt-1">
               Join Phidim Service to access all features &amp; services
             </p>
           </div>
+
+          {/* Booking Notice when redirected from Book Service action */}
+          {showBookingPrompt && (
+            <div
+              className="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-950 text-xs font-semibold mb-5 animate-in fade-in duration-200 shadow-xs"
+              role="status"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                <div>
+                  <span className="font-bold text-emerald-950 block">Registration required to book a service!</span>
+                  <span className="text-emerald-800 text-[11px] leading-tight block mt-0.5 font-normal">
+                    Please create an account or sign in to schedule an on-site technician in Phidim.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBookingPrompt(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                aria-label="Dismiss notice"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Registration Notice when redirected from Like action */}
+          {showRegisterPrompt && (
+            <div
+              className="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-semibold mb-5 animate-in fade-in duration-200 shadow-xs"
+              role="status"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <div>
+                  <span className="font-bold text-amber-950 block">First you need to register!</span>
+                  <span className="text-amber-800 text-[11px] leading-tight block mt-0.5 font-normal">
+                    Please create an account or sign in to like services on Phidim Service.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRegisterPrompt(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                aria-label="Dismiss notice"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Server Error Alert */}
           {serverError && (
