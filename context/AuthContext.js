@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import socket from "../realtime/client.js";
-import { fetchWithFailover, CPANEL_LIVE_BACKEND_URL } from "@/lib/apiClient";
+import { fetchWithFailover } from "@/lib/apiClient";
 import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { dashboardPathFor, normalizeRole, ROLES } from "@/lib/auth/roles";
 
 const AuthContext = createContext({
   user: null,
@@ -54,23 +55,58 @@ export const DEMO_ACCOUNTS = {
 };
 
 const SESSION_KEY = "phidim_auth_user";
+const DJANGO_API_URL =
+  process.env.NEXT_PUBLIC_DJANGO_API_URL ||
+  "http://localhost:8000";
+
+function parseJwtPayload(token) {
+  if (!token || typeof token !== "string") return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    return JSON.parse(atob(b64));
+  } catch (e) {
+    return null;
+  }
+}
+
+function getDjangoLoginUrl() {
+  const baseUrl = DJANGO_API_URL.replace(/\/+$/, "");
+  return `${baseUrl}/login/`;
+}
+
+function getAuthErrorMessage(status, data) {
+  if (data?.detail) return data.detail;
+  if (data?.error) return data.error;
+  if (data?.message) return data.message;
+  if (data?.non_field_errors?.length) return data.non_field_errors.join(" ");
+  if (status === 400 || status === 401 || status === 403) {
+    return "Invalid email or password. Please check your credentials.";
+  }
+  return `Login failed (${status}). Please try again.`;
+}
+
+function clearStoredSession() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(SESSION_KEY);
+  document.cookie = "phidim_auth_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+  document.cookie = "phidim_jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+  document.cookie = "phidim_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+  document.cookie = "phidim_refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+}
 
 function normalizeUser(u) {
   if (!u) return null;
   const emailPrefix = u.email ? u.email.split("@")[0] : "";
   const derivedUsername = (u.username || emailPrefix).toLowerCase().replace(/[^a-z0-9_]/g, "");
-  const role = String(u.role || "USER").toUpperCase();
-  const dashboardPath =
-    role === "ADMIN"
-      ? "/admin/dashboard"
-      : role === "TECHNICIAN"
-      ? "/technician/dashboard"
-      : "/user/dashboard";
+  const role = normalizeRole(u.role) || ROLES.USER;
 
   return {
     ...u,
     role,
-    dashboardPath,
+    dashboardPath: dashboardPathFor(role),
     displayName: u.displayName || u.name || emailPrefix || "User",
     username: derivedUsername,
     avatar: u.avatar || u.picture || "",
@@ -78,34 +114,10 @@ function normalizeUser(u) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(SESSION_KEY);
-        if (saved) return normalizeUser(JSON.parse(saved));
-        const cookieMatch = document.cookie.match(/phidim_auth_user=([^;]+)/);
-        if (cookieMatch) {
-          let rawVal = decodeURIComponent(cookieMatch[1]);
-          if (rawVal.startsWith("j:")) rawVal = rawVal.slice(2);
-          return normalizeUser(JSON.parse(rawVal));
-        }
-      } catch (e) { }
-    }
-    return null;
-  });
-
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        if (localStorage.getItem(SESSION_KEY) || document.cookie.includes("phidim_auth_user=")) {
-          return false;
-        }
-      } catch (e) { }
-    }
-    return true;
-  });
-
-  const refreshTimer = useRef(null);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expiresAt, setExpiresAt] = useState(null);
+  const sessionVersion = useRef(0);
 
   const safeSetUser = useCallback((acc) => {
     const normalized = normalizeUser(acc);
@@ -116,135 +128,65 @@ export function AuthProvider({ children }) {
         const cookieVal = encodeURIComponent(JSON.stringify(normalized));
         document.cookie = `phidim_auth_user=${cookieVal}; path=/; max-age=2592000; SameSite=Lax`;
       } else if (typeof window !== "undefined") {
-        localStorage.removeItem(SESSION_KEY);
-        document.cookie = "phidim_auth_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
-        document.cookie = "phidim_jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
-        document.cookie = "phidim_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
-        document.cookie = "phidim_refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax";
+        clearStoredSession();
       }
     } catch (e) {
       console.error(e);
     }
   }, []);
 
-  const refreshSession = useCallback(async () => {
+  // This checks the current access token; it does not refresh its lifetime.
+  const refreshSession = useCallback(async (profile = {}) => {
+    const version = ++sessionVersion.current;
     try {
-      const res = await fetchWithFailover("/api/auth/refresh", {
-        method: "POST",
-        timeout: 3000,
+      const res = await fetch("/api/auth/session", {
+        credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(7000),
       });
-      if (!res.ok) throw new Error("Refresh failed");
       const data = await res.json();
-      if (data.success && data.user) {
-        const norm = normalizeUser(data.user);
-        setUser(norm);
-        try {
-          localStorage.setItem(SESSION_KEY, JSON.stringify(norm));
-        } catch (e) { }
-        return norm;
+      if (!res.ok || !data.success || !normalizeRole(data.user?.role)) throw new Error("Invalid session");
+      if (version !== sessionVersion.current) return null;
+      let cached = {};
+      try {
+        const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+        if (saved?.id === data.user.id) cached = saved;
+      } catch {}
+      // Cached data supplies display fields only; identity and role always
+      // come from the server-verified access token.
+      const normalized = normalizeUser({
+        ...data.user,
+        name: data.user.name || profile.name || cached.name || "",
+        displayName: data.user.displayName || profile.displayName || profile.name || cached.displayName || "",
+        email: data.user.email || profile.email || cached.email || "",
+        phone: data.user.phone || profile.phone || cached.phone || "",
+        avatar: data.user.avatar || profile.avatar || cached.avatar || "",
+      });
+      safeSetUser(normalized);
+      setExpiresAt(data.expiresAt);
+      return normalized;
+    } catch {
+      if (version === sessionVersion.current) {
+        safeSetUser(null);
+        setExpiresAt(null);
       }
-    } catch (e) { }
-    return null;
-  }, []);
+      return null;
+    }
+  }, [safeSetUser]);
 
   useEffect(() => {
     let active = true;
-
-    async function restoreSession() {
-      try {
-        const refreshed = await refreshSession();
-        if (!active) return;
-        if (refreshed) {
-          setIsLoading(false);
-          return;
-        }
-
-        if (typeof window !== "undefined") {
-          const params = new URLSearchParams(window.location.search);
-          const authToken = params.get("auth_token");
-          const userParam = params.get("user");
-          if (authToken && userParam) {
-            try {
-              let parsedUser = JSON.parse(decodeURIComponent(userParam));
-              if (parsedUser) {
-                const norm = normalizeUser(parsedUser);
-                safeSetUser(norm);
-                document.cookie = `phidim_access_token=${authToken}; path=/; max-age=86400; SameSite=Lax`;
-                document.cookie = `phidim_auth_user=${encodeURIComponent(JSON.stringify(norm))}; path=/; max-age=2592000; SameSite=Lax`;
-                localStorage.setItem(SESSION_KEY, JSON.stringify(norm));
-                params.delete("auth_token");
-                params.delete("user");
-                const newQuery = params.toString() ? `?${params.toString()}` : "";
-                window.history.replaceState({}, "", `${window.location.pathname}${newQuery}`);
-                setIsLoading(false);
-                return;
-              }
-            } catch (e) { }
-          }
-
-          const cookieMatch = document.cookie.match(/phidim_auth_user=([^;]+)/);
-          if (cookieMatch) {
-            try {
-              let rawVal = cookieMatch[1];
-              try {
-                rawVal = decodeURIComponent(rawVal);
-              } catch (e) { }
-              if (typeof rawVal === "string" && rawVal.startsWith("j:")) {
-                rawVal = rawVal.slice(2);
-              }
-              const googleUser = JSON.parse(rawVal);
-              if (googleUser && googleUser.role) {
-                const norm = normalizeUser(googleUser);
-                setUser(norm);
-                localStorage.setItem(SESSION_KEY, JSON.stringify(norm));
-                setIsLoading(false);
-                return;
-              }
-            } catch (e) { }
-          }
-
-          const savedUser = localStorage.getItem(SESSION_KEY);
-          if (savedUser) {
-            const parsed = JSON.parse(savedUser);
-            if (parsed) {
-              try {
-                const meRes = await fetchWithFailover("/api/auth/me", { timeout: 2500 });
-                if (meRes.ok) {
-                  const meData = await meRes.json();
-                  if (meData.success && meData.user) {
-                    const norm = normalizeUser(meData.user);
-                    setUser(norm);
-                    setIsLoading(false);
-                    return;
-                  }
-                }
-              } catch (e) { }
-              setUser(normalizeUser(parsed));
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Failed to restore auth session:", e);
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    }
-
-    restoreSession();
-    return () => {
-      active = false;
-    };
-  }, [refreshSession, safeSetUser]);
+    refreshSession().finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [refreshSession]);
 
   useEffect(() => {
-    if (!user) return;
-    refreshTimer.current = setInterval(() => {
-      refreshSession().catch(() => { });
-    }, 12 * 60 * 1000);
-    return () => {
-      if (refreshTimer.current) clearInterval(refreshTimer.current);
-    };
-  }, [user, refreshSession]);
+    if (!expiresAt) return;
+    const timer = setTimeout(() => {
+      ++sessionVersion.current;
+      safeSetUser(null);
+      setExpiresAt(null);
+    }, Math.max(0, expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [expiresAt, safeSetUser]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -289,53 +231,79 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async ({ emailOrPhone, password, rememberMe = false, role = "USER" }) => {
-      if (!BACKEND_READY) {
-        triggerBackendWarning();
-        return;
-      }
       try {
-        const res = await fetchWithFailover("/api/auth/login", {
+        const res = await fetch(getDjangoLoginUrl(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ emailOrPhone, password, rememberMe, role }),
-          timeout: 8000,
+          credentials: "omit",
+          body: JSON.stringify({
+            email: String(emailOrPhone || "").trim(),
+            password,
+          }),
         });
 
         let data = {};
         try {
           data = await res.json();
         } catch (e) {
-          data = { error: "Authentication response parsing error. Please try again." };
+          data = {};
         }
         if (!res.ok) {
-          const err = new Error(data.error || data.message || `Login failed (${res.status})`);
+          const err = new Error(getAuthErrorMessage(res.status, data));
           err.status = res.status;
           err.locked = data.locked;
           err.retryAfterSeconds = data.retryAfterSeconds;
           throw err;
         }
 
-        const token = data.accessToken || data.token || "";
-        if (typeof window !== "undefined" && token) {
+        const token = data.access || data.accessToken || data.token || "";
+        const refreshToken = data.refresh || data.refreshToken || "";
+        if (!token || !refreshToken) {
+          throw new Error("Login response did not include access and refresh tokens.");
+        }
+
+        const decoded = parseJwtPayload(token) || {};
+        const tokenRole = normalizeRole(decoded.role);
+        const userRole = normalizeRole(data.user?.role);
+        const topLevelRole = normalizeRole(data.role);
+        const allReturnedRoles = [tokenRole, userRole, topLevelRole].filter(Boolean);
+        const uniqueReturnedRoles = new Set(allReturnedRoles);
+
+        if (uniqueReturnedRoles.size > 1) {
+          clearStoredSession();
+          throw new Error("Login response role mismatch. Please contact support.");
+        }
+
+        const activeRole = tokenRole || userRole || topLevelRole;
+        if (!activeRole) {
+          clearStoredSession();
+          throw new Error("Login response did not include a valid account role.");
+        }
+
+        const requestedRole = normalizeRole(role) || ROLES.USER;
+        if (activeRole !== requestedRole) {
+          clearStoredSession();
+          throw new Error("This account is not allowed in this portal.");
+        }
+
+        if (typeof window !== "undefined") {
           const maxAge = rememberMe ? 2592000 : 86400;
           document.cookie = `phidim_access_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
           document.cookie = `phidim_jwt_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+          document.cookie = `phidim_refresh_token=${refreshToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
         }
-
-        const activeRole = role || data.user?.role || "USER";
-        const account = data.user
-          ? {
-            ...data.user,
-            role: activeRole,
-          }
-          : DEMO_ACCOUNTS[activeRole] || DEMO_ACCOUNTS.USER;
-        safeSetUser(account);
-        return account;
+        const verified = await refreshSession(data.user || { email: String(emailOrPhone || "").trim() });
+        if (!verified) throw new Error("Could not verify your login session. Please sign in again.");
+        setIsLoading(false);
+        return verified;
       } catch (error) {
+        if (error instanceof TypeError) {
+          throw new Error("Could not reach the login API at http://localhost:8000/login/. Please make sure it is running and allows requests from this frontend.");
+        }
         throw error;
       }
     },
-    [safeSetUser]
+    [refreshSession]
   );
 
   const register = useCallback(
@@ -359,15 +327,16 @@ export function AuthProvider({ children }) {
           throw err;
         }
 
-        const token = resData.accessToken || resData.token || "";
+        const token = resData.access || resData.accessToken || resData.token || "";
+        if (!token) throw new Error("Registration did not provide an access token. Please sign in.");
         if (typeof window !== "undefined" && token) {
           document.cookie = `phidim_access_token=${token}; path=/; max-age=2592000; SameSite=Lax`;
           document.cookie = `phidim_jwt_token=${token}; path=/; max-age=2592000; SameSite=Lax`;
         }
 
-        const newAccount = resData.user;
-        safeSetUser(newAccount);
-        if (typeof window !== "undefined" && newAccount.dashboardPath) {
+        const newAccount = await refreshSession();
+        if (!newAccount) throw new Error("Registration did not provide a verified Django session. Please sign in.");
+        if (typeof window !== "undefined" && newAccount?.dashboardPath) {
           window.location.href = newAccount.dashboardPath;
         }
         return newAccount;
@@ -375,13 +344,12 @@ export function AuthProvider({ children }) {
         throw error;
       }
     },
-    [safeSetUser]
+    [refreshSession]
   );
 
   const logout = useCallback(async () => {
-    try {
-      await fetchWithFailover("/api/auth/logout", { method: "POST", timeout: 3000 });
-    } catch (e) { }
+    ++sessionVersion.current;
+    setExpiresAt(null);
     safeSetUser(null);
     if (typeof window !== "undefined") {
       window.location.href = "/login";
@@ -399,7 +367,7 @@ export function AuthProvider({ children }) {
       return;
     }
     setUser((prev) => {
-      const next = { ...(prev || {}), ...updatedFields };
+      const next = prev ? { ...prev, ...updatedFields, id: prev.id, role: prev.role, dashboardPath: prev.dashboardPath } : null;
       if (typeof window !== "undefined") {
         try {
           localStorage.setItem(SESSION_KEY, JSON.stringify(next));
@@ -420,8 +388,8 @@ export function AuthProvider({ children }) {
         const data = await res.json();
         if (data.success && data.user) {
           const normalized = normalizeUser(data.user);
-          setUser(normalized);
-          return data.user;
+          setUser((prev) => prev ? { ...normalized, id: prev.id, role: prev.role, dashboardPath: prev.dashboardPath } : null);
+          return normalized;
         }
       }
     } catch (e) {

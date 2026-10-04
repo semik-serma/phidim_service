@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { verifyAccessToken } from "@/lib/auth/token";
+import { dashboardPathFor } from "@/lib/auth/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +45,7 @@ export async function GET(request) {
     console.warn("[Google OAuth] Could not parse state, using defaults");
   }
 
-  const role = (state.role || "USER").toUpperCase();
+  // Portal selection is a display preference, never an account permission.
   const redirectUri =
     state.redirectUri ||
     process.env.GOOGLE_CALLBACK_URL ||
@@ -89,72 +91,32 @@ export async function GET(request) {
       return NextResponse.redirect(`${baseUrl}/login?error=ProfileFetchFailed`);
     }
 
-    // 3. Construct client-safe authenticated user
-    const targetDashboard =
-      role === "ADMIN"
-        ? "/admin/dashboard"
-        : role === "TECHNICIAN"
-          ? "/technician/dashboard"
-          : "/user/dashboard";
-
-    let authUser = {
-      id: profile.id ? `usr-${profile.id.slice(-6)}` : `usr-${Date.now()}`,
-      name: profile.name || profile.given_name || "Google User",
-      displayName: profile.name || profile.given_name || "Google User",
-      email: profile.email,
-      phone: "",
-      role: role,
-      avatar: profile.picture || "",
-      dashboardPath: targetDashboard,
-      status: "active",
-    };
-
-    let accessToken = tokenData.id_token || tokenData.access_token;
-
-    // 4. Try syncing with backend API if available
-    try {
-      const backendSync = await fetch(`${BACKEND_URL}/api/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          googleUser: profile,
-          role,
-          idToken: tokenData.id_token,
-          accessToken: tokenData.access_token,
-        }),
-      });
-      if (backendSync.ok) {
-        const syncData = await backendSync.json();
-        if (syncData.user) {
-          authUser = { ...authUser, ...syncData.user, role };
-        }
-        if (syncData.accessToken) {
-          accessToken = syncData.accessToken;
-        }
-      }
-    } catch (backendErr) {
-      console.warn("[Google OAuth] Backend sync skipped, proceeding with Google verified session");
-    }
-
-    // 5. Build response and set security cookies
-    const destination = `${baseUrl}${authUser.dashboardPath || targetDashboard}`;
+    // Only a Django-issued access token can establish a dashboard session.
+    const backendSync = await fetch(`${BACKEND_URL}/api/auth/google`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ googleUser: profile, idToken: tokenData.id_token, accessToken: tokenData.access_token }),
+      cache: "no-store", signal: AbortSignal.timeout(5000),
+    });
+    if (!backendSync.ok) return NextResponse.redirect(`${baseUrl}/login?error=BackendSessionRequired`);
+    const syncData = await backendSync.json();
+    const accessToken = syncData.access || syncData.accessToken || syncData.token;
+    const decoded = await verifyAccessToken(accessToken);
+    if (!decoded) return NextResponse.redirect(`${baseUrl}/login?error=BackendSessionRequired`);
+    const destination = `${baseUrl}${dashboardPathFor(decoded.role)}`;
     const response = NextResponse.redirect(destination);
 
     const cookieOptions = {
       path: "/",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
+      maxAge: Math.max(0, Math.floor(decoded.exp - Date.now() / 1000)),
       sameSite: "lax",
       httpOnly: false,
+      secure: new URL(baseUrl).protocol === "https:",
     };
 
     // Store tokens & user session
     response.cookies.set("phidim_access_token", accessToken, cookieOptions);
     response.cookies.set("phidim_jwt_token", accessToken, cookieOptions);
-    response.cookies.set(
-      "phidim_auth_user",
-      encodeURIComponent(JSON.stringify(authUser)),
-      cookieOptions
-    );
+
 
     return response;
   } catch (err) {

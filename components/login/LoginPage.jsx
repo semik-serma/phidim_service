@@ -92,12 +92,7 @@ export default function LoginPage() {
   // If already authenticated, redirect immediately to their dashboard
   useEffect(() => {
     if (isAuthenticated && user?.role) {
-      const target =
-        user.role === 'ADMIN'
-          ? '/admin/dashboard'
-          : user.role === 'TECHNICIAN'
-            ? '/technician/dashboard'
-            : '/user/dashboard';
+      const target = user.dashboardPath || '/user/dashboard';
       if (typeof window !== 'undefined') {
         window.location.href = target;
       }
@@ -240,12 +235,6 @@ export default function LoginPage() {
     e.preventDefault();
     setServerError('');
 
-    // Backend-dependent action intercepted while backend APIs are in development
-    if (!BACKEND_READY) {
-      triggerBackendWarning('USER');
-      return;
-    }
-
     if (!validateUserForm()) return;
     setIsSubmitting(true);
     try {
@@ -256,12 +245,7 @@ export default function LoginPage() {
         role: 'USER',
       });
 
-      const targetDashboard =
-        account?.role === 'ADMIN'
-          ? '/admin/dashboard'
-          : account?.role === 'TECHNICIAN'
-            ? '/technician/dashboard'
-            : '/user/dashboard';
+      const targetDashboard = account?.dashboardPath || '/user/dashboard';
 
       if (typeof window !== 'undefined') {
         window.location.href = targetDashboard;
@@ -278,12 +262,6 @@ export default function LoginPage() {
   const handleTechSubmit = async (e) => {
     e.preventDefault();
     setServerError('');
-
-    // Backend-dependent action intercepted while backend APIs are in development
-    if (!BACKEND_READY) {
-      triggerBackendWarning('TECHNICIAN');
-      return;
-    }
 
     if (!validateTechForm()) return;
     setIsSubmitting(true);
@@ -313,7 +291,7 @@ export default function LoginPage() {
 
       toast.success(`Welcome Technician ${account.name}! Redirecting to Technician Dashboard...`);
       if (typeof window !== 'undefined') {
-        window.location.href = '/technician/dashboard';
+        window.location.href = account?.dashboardPath || '/technician/dashboard';
       }
     } catch (err) {
       const msg = err?.message || 'Technician authentication failed. Please check your details.';
@@ -328,12 +306,6 @@ export default function LoginPage() {
     e.preventDefault();
     setServerError('');
 
-    // Backend-dependent action intercepted while backend APIs are in development
-    if (!BACKEND_READY) {
-      triggerBackendWarning('ADMIN');
-      return;
-    }
-
     if (!validateAdminForm()) return;
     setIsSubmitting(true);
     try {
@@ -345,7 +317,7 @@ export default function LoginPage() {
       });
       toast.success(`Welcome System Admin ${account.name}! Redirecting to Admin Dashboard...`);
       if (typeof window !== 'undefined') {
-        window.location.href = '/admin/dashboard';
+        window.location.href = account?.dashboardPath || '/admin/dashboard';
       }
     } catch (err) {
       const msg = err?.message || 'Admin authentication failed. Please check your credentials.';
@@ -357,12 +329,6 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = async (selectedRole) => {
-    // Backend-dependent action intercepted while backend APIs are in development
-    if (!BACKEND_READY) {
-      triggerBackendWarning(selectedRole || role);
-      return;
-    }
-
     const roleToUse = selectedRole;
     setRole(roleToUse);
     const demo = DEMO_ACCOUNTS[roleToUse] || DEMO_ACCOUNTS.USER;
@@ -370,12 +336,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       const account = await login({ emailOrPhone: demo.email, password: 'password123', rememberMe, role: roleToUse });
-      const targetDashboard =
-        roleToUse === 'ADMIN'
-          ? '/admin/dashboard'
-          : roleToUse === 'TECHNICIAN'
-            ? '/technician/dashboard'
-            : '/user/dashboard';
+      const targetDashboard = account?.dashboardPath || demo.dashboardPath || '/user/dashboard';
       toast.success(`Signed in as ${account.name}. Redirecting to ${targetDashboard}...`);
       if (typeof window !== 'undefined') {
         window.location.href = targetDashboard;
@@ -709,7 +670,7 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Signing into Customer Portal...
+                    Signing in with secure API...
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
@@ -853,7 +814,7 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Connecting Technician Interface...
+                    Verifying technician credentials...
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
@@ -948,7 +909,7 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-rose-400/40 border-t-rose-400 rounded-full animate-spin" />
-                    Authenticating Admin Session...
+                    Verifying admin credentials...
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">

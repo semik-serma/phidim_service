@@ -491,10 +491,6 @@ export function ElectricalCalculator({
     >
       {/* Top Header Section */}
       <div className="text-center space-y-2.5">
-        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Phidim Service • Certified Electrical Engineering Tools</span>
-        </div>
 
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tight">
           {activeMode === "electricity-bill"

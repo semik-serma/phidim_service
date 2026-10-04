@@ -158,7 +158,7 @@ export default function TechnicianDashboardPage({ initialTab = "dashboard" }) {
   };
 
   return (
-    <RoleGuard roles={["TECHNICIAN"]}>
+    <RoleGuard roles={["TECHNICIAN", "ADMIN"]}>
     <div className="min-h-screen bg-slate-50/70 dark:bg-[#070f0d] text-slate-900 dark:text-slate-100 font-dm-sans selection:bg-emerald-500 selection:text-white transition-colors duration-300 pb-20 lg:pb-8" data-dashboard="true">
       {/* Toast Notification Banner */}
       <AnimatePresence>

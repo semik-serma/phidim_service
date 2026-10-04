@@ -113,14 +113,6 @@ export const Navbar = ({
 
           {/* Browse Categories Dropdown Button */}
           <div className="relative">
-            <button
-              onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-              className="bg-[#8cc63f] hover:bg-[#7db333] text-white font-extrabold py-2.5 px-6 sm:px-8 flex items-center gap-2.5 transition-colors text-xs uppercase tracking-wider cursor-pointer shadow-xs rounded-sm"
-            >
-              <Wrench className="w-4 h-4 hidden sm:block shrink-0" />
-              <span>SERVICES</span>
-              <ChevronDown className={`w-4 h-4 ml-1 transition-transform duration-200 shrink-0 ${isCategoryOpen ? "rotate-180" : ""}`} />
-            </button>
 
             {/* Categories Dropdown Menu */}
             {isCategoryOpen && (

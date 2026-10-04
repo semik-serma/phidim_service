@@ -45,14 +45,6 @@ export default function RegisterPage() {
         sessionStorage.removeItem('phidim_booking_redirect_prompt');
       }
     } catch (e) {}
-
-    if (prompt === 'booking' || fromBookingRedirect) {
-      setShowBookingPrompt(true);
-      toast.warning('Registration required to book a service!', 'Please create an account to book your service appointment.');
-    } else if (prompt === 'register' || prompt === 'like' || fromLikeRedirect) {
-      setShowRegisterPrompt(true);
-      toast.warning('First you need to register!', 'Please create an account to like services.');
-    }
   }, []);
 
   const handleChange = (e) => {
@@ -308,31 +300,6 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Registration Notice when redirected from Like action */}
-          {showRegisterPrompt && (
-            <div
-              className="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-semibold mb-5 animate-in fade-in duration-200 shadow-xs"
-              role="status"
-            >
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                <div>
-                  <span className="font-bold text-amber-950 block">First you need to register!</span>
-                  <span className="text-amber-800 text-[11px] leading-tight block mt-0.5 font-normal">
-                    Please create an account or sign in to like services on Phidim Service.
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRegisterPrompt(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
-                aria-label="Dismiss notice"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
 
           {/* Server Error Alert */}
           {serverError && (

@@ -105,8 +105,6 @@ export const ContactUsPage = ({
 
           <div className="relative z-10 max-w-3xl space-y-4">
             <div className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-widest">
-              <ShieldCheck className="w-4 h-4 text-blue-400" />
-              <span>Doorstep Technical Services • Phidim, Panchthar</span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">

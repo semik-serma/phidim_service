@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Search, Heart, User, Eye, Globe, ExternalLink, LayoutDashboard, LogOut, Wrench } from "lucide-react";
 import { FaYoutube, FaFacebookF, FaLinkedinIn } from "react-icons/fa6";
 import { SERVICE_CATEGORIES } from "../data/services";
 import { formatCount } from "../utils/formatCount";
 import { useAuth } from "@/context/AuthContext";
 import { RopePullingDevBadge } from "./RopePullingDevBadge";
+
+const STORAGE_KEY = "phidim_service_categories";
 
 export const Header = ({
   searchQuery,
@@ -18,6 +21,45 @@ export const Header = ({
   onSearchSubmit
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
+  const [categories, setCategories] = useState(SERVICE_CATEGORIES);
+
+  const loadCategoriesFromStorage = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      // Only keep active categories, normalize to { id, name } shape
+      const normalized = parsed
+        .filter((cat) => cat?.is_active !== false && cat?.name)
+        .map((cat) => ({
+          id: cat.id,
+          name: cat.name,
+        }));
+
+      if (normalized.length > 0) {
+        setCategories(normalized);
+      }
+    } catch (err) {
+      console.error("Failed to parse service categories from localStorage:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadCategoriesFromStorage();
+
+    // Keep in sync if another tab/component updates localStorage
+    const handleStorageChange = (e) => {
+      if (e.key === STORAGE_KEY) {
+        loadCategoriesFromStorage();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && onSearchSubmit) {
@@ -28,7 +70,7 @@ export const Header = ({
   return (
     <header className="font-navbar bg-white border-b border-gray-200 py-2.5 sm:py-3 px-3 sm:px-4 md:px-6" data-navbar="true">
       <div className="max-w-[1700px] mx-auto flex flex-col md:flex-row items-center justify-between md:justify-center gap-4 md:gap-[150px]">
-        
+
         {/* Brand Logo - Desktop & Tablet */}
         <div className="hidden md:flex items-center gap-2 cursor-pointer select-none shrink-0" onClick={() => setSelectedCategory("ALL")}>
           <div className="relative w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-green-500/80 shadow-xs hover:scale-105 transition-transform bg-slate-950 p-0.5 shrink-0">
@@ -66,7 +108,7 @@ export const Header = ({
                 className="bg-transparent text-xs text-gray-700 font-bold focus:outline-hidden cursor-pointer py-0.5 uppercase"
               >
                 <option value="ALL">ALL SERVICES</option>
-                {SERVICE_CATEGORIES.filter((c) => c.id !== "all").map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat.id} value={cat.name}>
                     {cat.name}
                   </option>
@@ -84,7 +126,7 @@ export const Header = ({
           </div>
         </div>
 
-        {/* Social Links, Visitor Counter & Portfolio - Tight padding & gaps */}
+        {/* Social Links, Visitor Counter & Portfolio */}
         <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-between md:justify-end shrink-0">
           <div className="flex items-center gap-2 sm:gap-2.5">
             {!isAuthenticated && (
@@ -119,7 +161,7 @@ export const Header = ({
               </div>
             )}
 
-            {/* View Counter Badge - Compact */}
+            {/* View Counter Badge */}
             <div className="hidden sm:flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-900 px-2 py-0.5 rounded-full text-[11px] font-black shadow-2xs" title="Total Visitor Count">
               <Eye className="w-3 h-3 text-blue-600 animate-pulse shrink-0" />
               <span>{formatCount(visitorCount)} Views</span>
@@ -128,11 +170,9 @@ export const Header = ({
             {/* Developer Portfolio with Animated Rope-Pulling Character */}
             <RopePullingDevBadge />
           </div>
-
         </div>
 
       </div>
     </header>
   );
 };
-

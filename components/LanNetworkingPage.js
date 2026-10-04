@@ -95,10 +95,6 @@ export const LanNetworkingPage = ({
           <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
           <div className="relative z-10 max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-widest">
-              <Cable className="w-4 h-4 text-cyan-400" />
-              <span>Phidim Service • High Speed Networking</span>
-            </div>
 
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
               🌐 LAN Networking Services <span className="text-cyan-400 font-extrabold">(Local Area Network)</span>
@@ -269,17 +265,7 @@ export const LanNetworkingPage = ({
         {
     /* Broadband Integration: DishHome DTH Packages */
   }
-        <section className="pt-4">
-          <div className="mb-4 text-center">
-            <h2 className="text-xl sm:text-2xl font-black text-gray-900">
-              📡 Pair Your LAN Network With DishHome DTH Broadband
-            </h2>
-            <p className="text-xs text-gray-600 mt-1">
-              High-speed internet drop lines & dual-band router packages available at your doorstep in Phidim.
-            </p>
-          </div>
-          <DishHomeSection onOrderPackage={onOrderPackage} />
-        </section>
+        
 
       </div>
     </div>;

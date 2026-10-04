@@ -23,11 +23,93 @@ import {
   X,
   Filter,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { SERVICES } from "@/data/services";
 import { useAuth } from "@/context/AuthContext";
 import { handleUnauthenticatedBooking } from "@/lib/backendWarning";
+
+// ---------------------------------------------------------------------------
+// Categories API
+// ---------------------------------------------------------------------------
+const CATEGORIES_API_URL = "http://localhost:8000/categories/";
+
+// Keyword -> icon/color rules so dynamic category names coming back from the
+// API still land on a sensible icon + color scheme. Falls back to a plain
+// wrench icon / gray palette for anything that doesn't match.
+const ICON_RULES = [
+  { test: /elect|wiring|inverter/i, icon: Zap, color: "amber" },
+  { test: /cctv|camera|secur/i, icon: Camera, color: "blue" },
+  { test: /computer|laptop|\bit\b|electronics/i, icon: Monitor, color: "slate" },
+  { test: /\bfan\b/i, icon: Wind, color: "emerald" },
+  { test: /\btv\b|led|dth/i, icon: Tv, color: "indigo" },
+  { test: /fiber|\blan\b|network|wifi|dish/i, icon: Wifi, color: "cyan" },
+  { test: /\bac\b|cool|refrig|\bair\b/i, icon: Wind, color: "teal" },
+  { test: /plumb|water|pipe|sanit/i, icon: Droplet, color: "sky" },
+  { test: /appliance|home/i, icon: Home, color: "rose" },
+  { test: /solar|battery|power/i, icon: Zap, color: "orange" },
+];
+
+const COLOR_CLASSES = {
+  amber: {
+    bgClass: "bg-amber-50/70 border-amber-200/90",
+    badgeClass: "bg-amber-500/20 text-amber-900 border-amber-300",
+  },
+  blue: {
+    bgClass: "bg-blue-50/70 border-blue-200/90",
+    badgeClass: "bg-blue-500/20 text-blue-900 border-blue-300",
+  },
+  slate: {
+    bgClass: "bg-slate-50 border-slate-200/90",
+    badgeClass: "bg-slate-900 text-white",
+  },
+  emerald: {
+    bgClass: "bg-emerald-50/70 border-emerald-200/90",
+    badgeClass: "bg-emerald-500/20 text-emerald-900 border-emerald-300",
+  },
+  indigo: {
+    bgClass: "bg-indigo-50/70 border-indigo-200/90",
+    badgeClass: "bg-indigo-500/20 text-indigo-900 border-indigo-300",
+  },
+  cyan: {
+    bgClass: "bg-cyan-50/70 border-cyan-200/90",
+    badgeClass: "bg-cyan-500/20 text-cyan-900 border-cyan-300",
+  },
+  teal: {
+    bgClass: "bg-teal-50/70 border-teal-200/90",
+    badgeClass: "bg-teal-500/20 text-teal-900 border-teal-300",
+  },
+  sky: {
+    bgClass: "bg-sky-50/70 border-sky-200/90",
+    badgeClass: "bg-sky-500/20 text-sky-900 border-sky-300",
+  },
+  rose: {
+    bgClass: "bg-rose-50/70 border-rose-200/90",
+    badgeClass: "bg-rose-500/20 text-rose-900 border-rose-300",
+  },
+  orange: {
+    bgClass: "bg-orange-50/70 border-orange-200/90",
+    badgeClass: "bg-orange-500/20 text-orange-900 border-orange-300",
+  },
+  gray: {
+    bgClass: "bg-gray-50 border-gray-200/90",
+    badgeClass: "bg-gray-700 text-white",
+  },
+};
+
+const pickIconAndColor = (name = "") => {
+  const match = ICON_RULES.find((rule) => rule.test.test(name));
+  if (match) return { icon: match.icon, color: match.color };
+  return { icon: Wrench, color: "gray" };
+};
+
+const slugify = (name = "", id) =>
+  `${name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}-${id}`;
 
 export const OurServicesPage = ({
   selectedCategory: propCategory = "ALL",
@@ -41,6 +123,43 @@ export const OurServicesPage = ({
   const { isAuthenticated } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState(propCategory || "ALL");
   const [searchQuery, setSearchQuery] = useState(propSearch || "");
+
+  // Live categories/services pulled from the backend
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCategories = async () => {
+      try {
+        setIsLoading(true);
+        setFetchError(null);
+        const res = await fetch(CATEGORIES_API_URL);
+        if (!res.ok) {
+          throw new Error(`Request failed with status ${res.status}`);
+        }
+        const data = await res.json();
+        if (isMounted) {
+          setCategories(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setFetchError(err?.message || "Failed to load services");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadCategories();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Synchronize when parent props change (e.g. from Header search/dropdown)
   useEffect(() => {
@@ -76,134 +195,34 @@ export const OurServicesPage = ({
     if (propSetSearch) propSetSearch("");
   };
 
-  const servicesData = [
-    {
-      id: "electrical",
-      title: "⚡ Electrical Services (विद्युत सेवा)",
-      summaryTitle: "⚡ Electrical & Inverter",
-      categoryName: "Electrical & Inverter",
-      icon: Zap,
-      color: "amber",
-      bgClass: "bg-amber-50/70 border-amber-200/90",
-      badgeClass: "bg-amber-500/20 text-amber-900 border-amber-300",
-      items: [
-        "🏠 House Wiring (घरको वायरिङ)",
-        "🔌 Electrical Troubleshooting (विद्युत समस्या समाधान)",
-        "🛠️ Electrical Maintenance (विद्युत मर्मत तथा Maintenance)",
-        "💡 New Electrical Installation (नयाँ Electrical Installation)",
-        "🔋 Inverter Repair (इन्भर्टर मर्मत)",
-        "⚡ Battery Runtime Calculator"
-      ]
-    },
-    {
-      id: "cctv",
-      title: "🎥 CCTV Camera Services (CCTV क्यामेरा सेवा)",
-      summaryTitle: "🎥 CCTV & Security",
-      categoryName: "CCTV & Security",
-      icon: Camera,
-      color: "blue",
-      bgClass: "bg-blue-50/70 border-blue-200/90",
-      badgeClass: "bg-blue-500/20 text-blue-900 border-blue-300",
-      items: [
-        "📷 CCTV Camera Installation (CCTV जडान)",
-        "🔧 CCTV Repair (CCTV मर्मत)",
-        "🛠️ CCTV Maintenance (CCTV Maintenance)",
-        "🌐 Remote Mobile Viewing & NVR Setup"
-      ]
-    },
-    {
-      id: "computer",
-      title: "💻 Computer Services (कम्प्युटर सेवा)",
-      summaryTitle: "💻 Computer & IT Support",
-      categoryName: "Computer & IT Support",
-      icon: Monitor,
-      color: "slate",
-      bgClass: "bg-slate-50 border-slate-200/90",
-      badgeClass: "bg-slate-900 text-white",
-      items: [
-        "💻 Computer Installation (कम्प्युटर जडान)",
-        "🔧 Computer Repair (कम्प्युटर मर्मत)",
-        "⚙️ Computer Maintenance (कम्प्युटर Maintenance)",
-        "🛡️ Software, Virus & Security Removal"
-      ]
-    },
-    {
-      id: "fan",
-      title: "🌬️ Fan Services (पंखा सेवा)",
-      summaryTitle: "🌬️ Fan Services",
-      categoryName: "Fan Services",
-      icon: Wind,
-      color: "emerald",
-      bgClass: "bg-emerald-50/70 border-emerald-200/90",
-      badgeClass: "bg-emerald-500/20 text-emerald-900 border-emerald-300",
-      items: [
-        "🌀 Ceiling Fan Installation & Repair (Ceiling Fan जडान तथा मर्मत)",
-        "🌬️ Wall Fan Installation & Repair (Wall Fan जडान तथा मर्मत)"
-      ]
-    },
-    {
-      id: "tv",
-      title: "📺 LED TV Services (LED TV सेवा)",
-      summaryTitle: "📺 LED TV Services",
-      categoryName: "DishHome DTH & TV",
-      icon: Tv,
-      color: "indigo",
-      bgClass: "bg-indigo-50/70 border-indigo-200/90",
-      badgeClass: "bg-indigo-500/20 text-indigo-900 border-indigo-300",
-      items: [
-        "📺 LED TV Installation (LED TV जडान)",
-        "🔧 LED TV Repair (LED TV मर्मत)",
-        "📡 TV Wall Mount Bracket Installation"
-      ]
-    },
-    {
-      id: "networking",
-      title: "📡 DishHome & Networking Services",
-      summaryTitle: "📡 Fiber & Networking",
-      categoryName: "Fiber & LAN Networking",
-      icon: Wifi,
-      color: "cyan",
-      bgClass: "bg-cyan-50/70 border-cyan-200/90",
-      badgeClass: "bg-cyan-500/20 text-cyan-900 border-cyan-300",
-      items: [
-        "📡 DishHome Installation (DishHome जडान)",
-        "🛠️ DishHome Maintenance (DishHome Maintenance)",
-        "🌐 Local Networking Setup (Local Network Setup)",
-        "🔌 Fiber Drop Wire & Router Configuration"
-      ]
-    },
-    {
-      id: "ac",
-      title: "❄️ Air Conditioner (AC) Services",
-      summaryTitle: "❄️ AC & Refrigeration",
-      categoryName: "AC & Refrigeration",
-      icon: Wind,
-      color: "teal",
-      bgClass: "bg-teal-50/70 border-teal-200/90",
-      badgeClass: "bg-teal-500/20 text-teal-900 border-teal-300",
-      items: [
-        "❄️ AC Installation (AC जडान)",
-        "🔧 AC Repair (AC मर्मत)",
-        "🛠️ AC Maintenance (AC Maintenance)",
-        "🧹 Jet Cleaning & Cooling Performance Test"
-      ]
-    },
-    {
-      id: "plumbing",
-      title: "🚰 Plumbing Services (प्लम्बिङ सेवा)",
-      summaryTitle: "🚰 Plumbing & Sanitary",
-      categoryName: "Plumbing & Sanitary",
-      icon: Droplet,
-      color: "sky",
-      bgClass: "bg-sky-50/70 border-sky-200/90",
-      badgeClass: "bg-sky-500/20 text-sky-900 border-sky-300",
-      items: [
-        "🚰 Plumbing Troubleshooting (Plumbing समस्या समाधान)",
-        "🛠️ Plumbing Maintenance (Plumbing Maintenance)",
-        "🚿 Pipe Leakage Repair & Water Tank Fitting"
-      ]
-    }
-  ];
+  // Transform the raw /categories/ API payload into the card shape the UI
+  // renders. Only active categories that actually have services are shown.
+  const servicesData = useMemo(() => {
+    return categories
+      .filter(
+        (cat) =>
+          cat?.is_active && Array.isArray(cat.services) && cat.services.length > 0
+      )
+      .map((cat) => {
+        const { icon, color } = pickIconAndColor(cat.name);
+        const { bgClass, badgeClass } = COLOR_CLASSES[color];
+        return {
+          id: slugify(cat.name, cat.id),
+          rawId: cat.id,
+          title: cat.name,
+          summaryTitle: cat.name,
+          categoryName: cat.name,
+          description: cat.description,
+          photo: cat.photo,
+          icon,
+          color,
+          bgClass,
+          badgeClass,
+          items: cat.services.map((s) => s.name),
+          rawServices: cat.services,
+        };
+      });
+  }, [categories]);
 
   // Robust category matching function supporting both IDs and display names
   const isCategoryMatch = (service, filterCat) => {
@@ -215,38 +234,13 @@ export const OurServicesPage = ({
     const sSummary = (service.summaryTitle || "").toLowerCase();
     const sCatName = (service.categoryName || "").toLowerCase();
 
-    // Direct match
-    if (sId === f || sCatName === f || sSummary.includes(f) || f.includes(sId)) {
-      return true;
-    }
-
-    // Semantic keyword mapping
-    if (f.includes("elect") || f.includes("inverter") || f.includes("wiring")) {
-      return sId === "electrical";
-    }
-    if (f.includes("cctv") || f.includes("camera") || f.includes("secu")) {
-      return sId === "cctv";
-    }
-    if (f.includes("comp") || f.includes("laptop") || f.includes("it")) {
-      return sId === "computer";
-    }
-    if (f.includes("fan")) {
-      return sId === "fan";
-    }
-    if (f.includes("tv") || f.includes("led") || f.includes("dth")) {
-      return sId === "tv" || sId === "networking";
-    }
-    if (f.includes("fiber") || f.includes("lan") || f.includes("netw") || f.includes("wifi") || f.includes("dish")) {
-      return sId === "networking";
-    }
-    if (f.includes("ac") || f.includes("cool") || f.includes("refrig") || f.includes("air")) {
-      return sId === "ac";
-    }
-    if (f.includes("plumb") || f.includes("water") || f.includes("pipe") || f.includes("sanit")) {
-      return sId === "plumbing";
-    }
-
-    return sTitle.includes(f) || sSummary.includes(f);
+    return (
+      sId === f ||
+      sCatName === f ||
+      sSummary.includes(f) ||
+      sTitle.includes(f) ||
+      f.includes(sId)
+    );
   };
 
   const filteredServices = useMemo(() => {
@@ -264,25 +258,29 @@ export const OurServicesPage = ({
 
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [servicesData, selectedCategory, searchQuery]);
 
   const handleBookServiceAction = (service) => {
     if (!isAuthenticated) {
       handleUnauthenticatedBooking();
       return;
     }
-    const matched = SERVICES.find(
-      (s) =>
-        s.category.toLowerCase().includes(service.id.toLowerCase()) ||
-        s.name.toLowerCase().includes(service.id.toLowerCase())
-    ) || {
-      id: `srv-${service.id}`,
-      name: service.title.replace(/[^\w\s-]/gi, "").trim(),
-      category: service.summaryTitle.replace(/[^\w\s-]/gi, "").trim(),
-      basePrice: 500,
-      duration: "1-2 hours",
-      warranty: "30 Days Service Guarantee",
-    };
+
+    const firstRawService = service.rawServices?.[0];
+
+    const matched =
+      SERVICES.find(
+        (s) =>
+          s.category.toLowerCase().includes(service.categoryName.toLowerCase()) ||
+          s.name.toLowerCase().includes(service.categoryName.toLowerCase())
+      ) || {
+        id: firstRawService ? `srv-${firstRawService.id}` : `srv-${service.rawId}`,
+        name: firstRawService ? firstRawService.name : service.title,
+        category: service.categoryName,
+        basePrice: 500,
+        duration: "1-2 hours",
+        warranty: "30 Days Service Guarantee",
+      };
 
     if (onBookService) {
       onBookService(matched);
@@ -301,17 +299,14 @@ export const OurServicesPage = ({
     window.open(`https://wa.me/9779862772457?text=${text}`, "_blank");
   };
 
-  const filterPills = [
-    { id: "ALL", label: "All Services (सबै सेवाहरू)" },
-    { id: "electrical", label: "⚡ Electrical & Inverter" },
-    { id: "cctv", label: "🎥 CCTV & Security" },
-    { id: "computer", label: "💻 Computer & Laptop" },
-    { id: "plumbing", label: "🚰 Plumbing & Water" },
-    { id: "ac", label: "❄️ AC & Cooling" },
-    { id: "networking", label: "📡 FiberNet & DishHome" },
-    { id: "tv", label: "📺 LED TV Setup" },
-    { id: "fan", label: "🌬️ Fan Repair" },
-  ];
+  // Filter pills are now generated from whatever categories the API returns
+  const filterPills = useMemo(() => {
+    const pills = [{ id: "ALL", label: "All Services (सबै सेवाहरू)" }];
+    servicesData.forEach((service) => {
+      pills.push({ id: service.id, label: service.title });
+    });
+    return pills;
+  }, [servicesData]);
 
   const hasActiveFilters = selectedCategory !== "ALL" || searchQuery.trim() !== "";
 
@@ -412,7 +407,7 @@ export const OurServicesPage = ({
               const isSelected =
                 pill.id === "ALL"
                   ? selectedCategory === "ALL" || selectedCategory === "All Services"
-                  : isCategoryMatch({ id: pill.id, title: pill.label, summaryTitle: pill.label, categoryName: pill.label }, selectedCategory);
+                  : selectedCategory === pill.id;
 
               return (
                 <button
@@ -432,105 +427,133 @@ export const OurServicesPage = ({
           </div>
         </div>
 
-        {/* DETAILED SERVICES GRID */}
-        {filteredServices.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredServices.map((service) => {
-              const ServiceIcon = service.icon;
-              return (
-                <div
-                  key={service.id}
-                  className={`border rounded-3xl p-6 space-y-4 shadow-xs transition-all hover:shadow-md ${service.bgClass}`}
-                >
-                  <div className="flex items-start justify-between gap-3 border-b border-black/10 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-white shadow-xs flex items-center justify-center font-black">
-                        <ServiceIcon className="w-5 h-5 text-gray-900" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm sm:text-base font-black text-gray-950">
-                          {service.title}
-                        </h3>
-                        <p className="text-[11px] text-gray-600 font-semibold mt-0.5">
-                          Phidim Doorstep Technician Service
-                        </p>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${service.badgeClass}`}
-                    >
-                      AVAILABLE
-                    </span>
-                  </div>
-
-                  <ul className="space-y-2.5 text-xs text-gray-800 font-medium">
-                    {service.items.map((item, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2.5 bg-white/70 p-2 rounded-xl border border-black/5"
-                      >
-                        <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                        <span className="font-semibold text-gray-900">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/10">
-                    <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-semibold">
-                      <Clock className="w-3.5 h-3.5 text-gray-500" />
-                      <span>Quick 30-min Dispatch</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleBookServiceAction(service)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs hover:scale-102 cursor-pointer"
-                        title="Book Certified Technician"
-                      >
-                        <CalendarCheck className="w-3.5 h-3.5" />
-                        <span>Book Service</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleWhatsAppDirect(service.title)}
-                        className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                        title="Quick WhatsApp Booking"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-green-400 fill-current" />
-                        <span className="hidden sm:inline">WhatsApp</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {/* Loading State */}
+        {isLoading && (
+          <div className="bg-white border border-gray-200 rounded-3xl p-10 text-center space-y-4 shadow-xs">
+            <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-400">
+              <Loader2 className="w-7 h-7 animate-spin" />
+            </div>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h3 className="text-base font-black text-gray-900">Loading Services...</h3>
+              <p className="text-xs text-gray-500">Fetching the latest categories and services.</p>
+            </div>
           </div>
-        ) : (
-          /* Empty Search / Filter Result State */
+        )}
+
+        {/* Error State */}
+        {!isLoading && fetchError && (
           <div className="bg-white border border-gray-200 rounded-3xl p-10 text-center space-y-4 shadow-xs">
             <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-400">
               <Filter className="w-7 h-7" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-base font-black text-gray-900">
-                No Services Match Your Filter
-              </h3>
-              <p className="text-xs text-gray-500">
-                We couldn&apos;t find any service matching &quot;{searchQuery || selectedCategory}&quot;. Try selecting another category or clear the search filters.
-              </p>
+              <h3 className="text-base font-black text-gray-900">Couldn&apos;t Load Services</h3>
+              <p className="text-xs text-gray-500">{fetchError}</p>
             </div>
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Show All Services (सबै सेवाहरू)</span>
-            </button>
           </div>
+        )}
+
+        {/* DETAILED SERVICES GRID */}
+        {!isLoading && !fetchError && (
+          filteredServices.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredServices.map((service) => {
+                const ServiceIcon = service.icon;
+                return (
+                  <div
+                    key={service.id}
+                    className={`border rounded-3xl p-6 space-y-4 shadow-xs transition-all hover:shadow-md ${service.bgClass}`}
+                  >
+                    <div className="flex items-start justify-between gap-3 border-b border-black/10 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-white shadow-xs flex items-center justify-center font-black">
+                          <ServiceIcon className="w-5 h-5 text-gray-900" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-black text-gray-950">
+                            {service.title}
+                          </h3>
+                          <p className="text-[11px] text-gray-600 font-semibold mt-0.5">
+                            Phidim Doorstep Technician Service
+                          </p>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${service.badgeClass}`}
+                      >
+                        AVAILABLE
+                      </span>
+                    </div>
+
+                    <ul className="space-y-2.5 text-xs text-gray-800 font-medium">
+                      {service.items.map((item, i) => (
+                        <li
+                          key={i}
+                          className="flex items-start gap-2.5 bg-white/70 p-2 rounded-xl border border-black/5"
+                        >
+                          <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                          <span className="font-semibold text-gray-900">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/10">
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-600 font-semibold">
+                        <Clock className="w-3.5 h-3.5 text-gray-500" />
+                        <span>Quick 30-min Dispatch</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleBookServiceAction(service)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs hover:scale-102 cursor-pointer"
+                          title="Book Certified Technician"
+                        >
+                          <CalendarCheck className="w-3.5 h-3.5" />
+                          <span>Book Service</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleWhatsAppDirect(service.title)}
+                          className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                          title="Quick WhatsApp Booking"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-green-400 fill-current" />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* Empty Search / Filter Result State */
+            <div className="bg-white border border-gray-200 rounded-3xl p-10 text-center space-y-4 shadow-xs">
+              <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-400">
+                <Filter className="w-7 h-7" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="text-base font-black text-gray-900">
+                  No Services Match Your Filter
+                </h3>
+                <p className="text-xs text-gray-500">
+                  We couldn&apos;t find any service matching &quot;{searchQuery || selectedCategory}&quot;. Try selecting another category or clear the search filters.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Show All Services (सबै सेवाहरू)</span>
+              </button>
+            </div>
+          )
         )}
 
         {/* BOTTOM CALLOUT / CONTACT HELPLINE */}
