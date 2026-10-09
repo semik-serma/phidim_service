@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+
+test('homepage displays real article states without cached dummy content', async () => {
+  const require = createRequire(import.meta.url);
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { transform } = require('next/dist/build/swc');
+  const source = await readFile(new URL('../components/HomepageCommentSection.jsx', import.meta.url), 'utf8');
+  const compiled = await transform(source, {filename: 'HomepageCommentSection.jsx', jsc: {parser: {syntax: 'ecmascript', jsx: true}, transform: {react: {runtime: 'classic'}}}, module: {type: 'commonjs'}});
+  let values = {};
+  let cursor = 0;
+  const module = {exports: {}};
+  vm.runInNewContext(compiled.code, {module, exports: module.exports, React, require: name => {
+    if (name === 'react') return {...React, useEffect: () => {}, useRef: () => ({current: null}), useState: initial => [Object.hasOwn(values, cursor) ? values[cursor++] : (cursor++, initial), () => {}]};
+    if (name === 'next/navigation') return {useRouter: () => ({})};
+    if (name === '@/context/AuthContext') return {useAuth: () => ({user: null, isAuthenticated: false})};
+    if (name === 'lucide-react') return new Proxy({}, {get: () => () => null});
+    if (name.startsWith('@/services/') || name === '@/lib/backendWarning') return {};
+    throw new Error('Unexpected import: ' + name);
+  }});
+  const render = state => { values = state; cursor = 0; return renderToStaticMarkup(module.exports.HomepageCommentSection()); };
+  assert.match(render({}), /Loading article/);
+  assert.match(render({2: 'empty'}), /No articles available yet/);
+  assert.match(render({2: 'error'}), /Unable to load the article/);
+  assert.match(render({2: 'error'}), /Retry/);
+  const article = {id: 17, title: 'Real Django article', content: 'First line\n' + 'Long article content. '.repeat(20), image: 'http://localhost:8000/media/photo.jpg', created_at: '2026-10-09'};
+  const collapsed = render({1: article, 2: 'ready'});
+  assert.match(collapsed, /Real Django article/);
+  assert.match(collapsed, /media\/photo.jpg/);
+  assert.match(collapsed, /Read more/);
+  assert.match(collapsed, /aria-expanded="false"/);
+  assert.doesNotMatch(collapsed, /DhanRaj|Ramesh|Translate|IT Founder/);
+  const expanded = render({1: article, 2: 'ready', 11: true});
+  assert.match(expanded, /Show less/);
+  assert.ok(expanded.includes(article.content));
+  assert.doesNotMatch(render({1: article, 2: 'ready', 4: true}), /<img/);
+});

@@ -5,25 +5,16 @@ import {
   ThumbsUp,
   ThumbsDown,
   Share2,
-  SendHorizontal,
   Check,
-  MessageCircle,
   MessageSquare,
-  Lock,
-  LogIn,
   ChevronDown,
   ChevronUp,
   CornerDownRight,
-  Languages,
-  ShieldCheck,
-  Sparkles,
-  UserCheck,
-  Flame,
   Plus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { fetchWithFailover } from "@/lib/apiClient";
+import { fetchNewestDjangoArticle } from "@/services/articleService";
 import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedLike } from "@/lib/backendWarning";
 import {
   fetchDjangoComments,
@@ -32,167 +23,17 @@ import {
   likeDjangoComment,
 } from "@/services/commentService";
 
-// Comprehensive multi-language comment discussions (Nepali & English only)
-const INITIAL_COMMENTS = [
-  {
-    id: "cmt-1",
-    author: {
-      name: "DhanRaj Sherma",
-      avatarUrl: "/dhanraj.png",
-      role: "It Founder",
-    },
-    translations: {
-      Nepali:
-        "संसारमा प्रतिस्पर्धाले मात्र पैसा कमाइँदैन, पैसा कमाउन सहकार्य चाहिन्छ। त्यसैले हामीले बनाएको सहकार्यले संसार जोड्न सक्छ, रोजगारी सिर्जना हुन सक्छ अनि प्रयोगकर्ताले दक्ष जनशक्ति पाउँछ। मानिसको जीवनमा आवश्यक वस्तु उत्पादन गर्नुका साथै समयअनुसार अद्यावधिक (अपडेट) पनि हुनुपर्छ। समय, वस्तु, वातावरण र मानिसको प्रगति दिनप्रतिदिन आवश्यक बन्दै गएको छ। बाँकी आवश्यक सल्लाह सुझाव कमेन्ट गर्नुहोस्।",
-      English:
-        "In this world, competition alone doesn't make money; collaboration is required to create real value. That is why our collaborative platform can connect people globally, generate employment, and help users find certified skilled technicians. Beyond producing essential everyday goods, continuous innovation and updates are vital. As time, technology, and human progress evolve daily, your valuable suggestions and feedback in the comments are always welcome.",
-    },
-    likes: 42,
-    dislikes: 1,
-    createdAt: "Just now",
-    founderBadges: true,
-    isCardStyle: false,
-    replies: [],
-  },
-  {
-    id: "cmt-2",
-    author: {
-      name: "Ramesh Adhikari",
-      avatarUrl: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80",
-      role: "Verified Customer",
-    },
-    translations: {
-      Nepali:
-        "एकदमै राम्रो विचार सर 🙌 प्रतिस्पर्धाभन्दा सहकार्य र आपसी सहयोगले नै नयाँ अवसर, रोजगारी र विकासका ढोकाहरू खोल्न सक्छ। सबै मिलेर अगाडि बढ्दा व्यक्ति मात्र होइन, समाज र देशकै प्रगति सम्भव हुन्छ। 🤝🚀",
-      English:
-        "Excellent perspective sir 🙌 Collaboration and teamwork open far more doors to new opportunities, jobs, and development than mere competition. When we move forward together, not just individuals but the entire society and nation prosper. 🤝🚀",
-    },
-    likes: 28,
-    dislikes: 0,
-    createdAt: "10 mins ago",
-    isCardStyle: true,
-    replies: [
-      {
-        id: "rep-2",
-        author: {
-          name: "Sunil Sherpa",
-          avatarUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80",
-          role: "Verified Electrician",
-        },
-        translations: {
-          Nepali: "धन्यवाद रमेश जी! हामी प्राविधिकहरू घरदैलोमै उच्च गुणस्तरको सेवा दिन सदैव तत्पर छौं। 🙏⚡",
-          English: "Thank you Ramesh ji! As certified technicians, we are always ready to deliver premium doorstep service. 🙏⚡",
-        },
-        likes: 8,
-        createdAt: "2 mins ago",
-      },
-    ],
-  },
-  {
-    id: "cmt-3",
-    author: {
-      name: "Sita Subedi",
-      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80",
-      role: "Phidim Resident",
-    },
-    translations: {
-      Nepali:
-        "फिदिम सेवाले गर्दा अब घरमै बसेर दक्ष इलेक्ट्रिसियन र प्लम्बर बोलाउन निकै सजिलो भएको छ। स्थानीय स्तरमा यस्तो डिजिटल सहकार्यको थालनी गरेकोमा सम्पूर्ण टिमलाई हार्दिक शुभकामना! 🙏",
-      English:
-        "Phidim Service has made booking verified electricians and plumbers at home so effortless. Warm congratulations to the entire team for bringing this collaborative tech platform to our local community! 🙏",
-    },
-    likes: 19,
-    dislikes: 0,
-    createdAt: "1 hour ago",
-    isCardStyle: true,
-    replies: [],
-  },
-  {
-    id: "cmt-4",
-    author: {
-      name: "Alex Sharma",
-      avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-      role: "Tech Consultant",
-    },
-    translations: {
-      Nepali:
-        "पाँचथर जिल्लाका लागि अत्यन्तै क्रान्तिकारी पहल! स्थानीय प्राविधिक र घरपरिवारलाई सहजै जोड्नुका साथै सहकार्यको भावनालाई अगाडि बढाएको छ। फिदिमको यो डिजिटल प्रगति देखेर धेरै खुसी लाग्यो।",
-      English:
-        "A revolutionary initiative for Panchthar district! Connecting local technicians with households seamlessly while fostering true collaboration instead of friction. Proud to see Phidim advancing digitally.",
-    },
-    likes: 35,
-    dislikes: 0,
-    createdAt: "2 hours ago",
-    isCardStyle: false,
-    replies: [],
-  },
-  {
-    id: "cmt-5",
-    author: {
-      name: "Bikash Thapa",
-      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
-      role: "Shop Owner, Main Bazaar",
-    },
-    translations: {
-      Nepali:
-        "मुख्य बजारको पसलमा ८ वटा क्यामेरा भएको सीसीटीभी जडान गराएको, मोबाइलमा प्रत्यक्ष दृश्य निकै सफा आउँछ। प्राविधिक समयमै आइपुग्नुभयो। फिदिममा यस्तो भरपर्दो सेवा पाएकोमा धन्यवाद! 📹✨",
-      English:
-        "Installed an 8-channel CCTV security system at our shop in Main Bazaar. Mobile remote streaming works crystal clear. Technicians arrived right on time. Outstanding local service in Phidim! 📹✨",
-    },
-    likes: 24,
-    dislikes: 0,
-    createdAt: "4 hours ago",
-    isCardStyle: true,
-    replies: [],
-  },
-  {
-    id: "cmt-6",
-    author: {
-      name: "Rajesh Tamang",
-      avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-      role: "Senior AC Field Technician",
-    },
-    translations: {
-      Nepali:
-        "हामी कार्यक्षेत्रमा वास्तविक समस्याहरूको समाधान गर्छौं। एसी ग्यास रिफिल, कपर पाइप सोल्डरिङ र एसी जडानमा स्पष्ट तथा पारदर्शी शुल्क पाउँदा ग्राहकहरू निकै सन्तुष्ट हुनुहुन्छ। पाँचथरमा सेवा गर्न पाउँदा खुसी लाग्छ! ❄️🔧",
-      English:
-        "We solve real hands-on technical issues in the field. Customers appreciate transparent upfront pricing for AC gas recharging, copper piping, and split unit installations. Proud to serve Panchthar! ❄️🔧",
-    },
-    likes: 31,
-    dislikes: 0,
-    createdAt: "6 hours ago",
-    isCardStyle: false,
-    replies: [],
-  },
-  {
-    id: "cmt-7",
-    author: {
-      name: "Pooja Karki",
-      avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80",
-      role: "Ward 4 Resident",
-    },
-    translations: {
-      Nepali:
-        "डिसहोम अप्टिकल फाइबर इन्टरनेट जोडेको, २०० एमबीपीएसको गति निरन्तर स्थिर आइरहेको छ। भिडियो कल र घरबाट काम गर्न निकै सहज भएको छ। सेमिक सर र धनराज सरलाई धेरै धेरै धन्यवाद! 📡🌐",
-      English:
-        "Connected DishHome optical fiber internet; getting consistent 200 Mbps speed throughout the day. Video conferencing and remote work run smoothly. Thank you Semik sir and DhanRaj sir! 📡🌐",
-    },
-    likes: 22,
-    dislikes: 0,
-    createdAt: "12 hours ago",
-    isCardStyle: true,
-    replies: [],
-  },
-];
-
 export function HomepageCommentSection() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const inputRef = useRef(null);
 
-  // Available language tabs: Only Nepali and English (Neplish removed)
-  const [activeLang, setActiveLang] = useState("Nepali");
-  const [comments, setComments] = useState(INITIAL_COMMENTS);
+  const activeLang = "Nepali";
+  const [comments, setComments] = useState([]);
+  const [article, setArticle] = useState(null);
+  const [articleStatus, setArticleStatus] = useState("loading");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [imageFailed, setImageFailed] = useState(false);
   const [newCommentText, setNewCommentText] = useState("");
   const [reactions, setReactions] = useState({}); // { [id]: 'like' | 'dislike' }
   const [copiedId, setCopiedId] = useState(null);
@@ -215,70 +56,79 @@ export function HomepageCommentSection() {
   const [activeReplyId, setActiveReplyId] = useState(null);
   const [replyInputText, setReplyInputText] = useState("");
 
-  // Restore saved comments & reactions from Django backend with localStorage fallback
+  const [commentsStatus, setCommentsStatus] = useState("idle");
+  const [commentsReloadKey, setCommentsReloadKey] = useState(0);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState("");
+  const commentRequest = useRef(null);
+
   useEffect(() => {
-    async function loadServerComments() {
+    const controller = new AbortController();
+    setArticleStatus("loading");
+    setArticle(null);
+    setComments([]);
+    setReactions({});
+    setImageFailed(false);
+    setIsPostExpanded(false);
+    setVisibleCount(1);
+    setActiveReplyId(null);
+    setReplyInputText("");
+    async function loadArticle() {
       try {
-        const djangoList = await fetchDjangoComments();
-        if (Array.isArray(djangoList) && djangoList.length > 0) {
-          // Keep featured Founder post at top and append Django comments
-          const combined = [INITIAL_COMMENTS[0], ...djangoList];
-          setComments(combined);
+        const latest = await fetchNewestDjangoArticle({ signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setArticle(latest);
+
+        if (latest) {
           try {
-            localStorage.setItem("phidim_homepage_comments_v7", JSON.stringify(combined));
-          } catch (e) {}
-          return;
+            setReactions(JSON.parse(localStorage.getItem("phidim_article_reactions_" + latest.id) || "{}"));
+          } catch {}
         }
-      } catch (e) {
-        console.warn("Failed to load comments from Django backend, checking fallback:", e);
-      }
-
-      // Offline / fallback to localStorage
-      try {
-        const stored = localStorage.getItem("phidim_homepage_comments_v7");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            if (parsed[0]?.author) {
-              parsed[0].author.avatarUrl = "/dhanraj.png";
-            }
-            setComments(parsed);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load stored comments", e);
+        setArticleStatus(latest ? "ready" : "empty");
+      } catch (error) {
+        if (!controller.signal.aborted) setArticleStatus("error");
       }
     }
+    loadArticle();
+    return () => controller.abort();
+  }, [reloadKey]);
 
-    loadServerComments();
-
+  useEffect(() => {
     try {
-      const storedReactions = localStorage.getItem("phidim_homepage_comment_reactions");
-      if (storedReactions) {
-        setReactions(JSON.parse(storedReactions));
-      }
-
-      // Check if user came back from login with a pending comment draft
-      const pendingDraft = sessionStorage.getItem("phidim_pending_comment_draft");
-      if (pendingDraft) {
-        setNewCommentText(pendingDraft);
+      const draft = sessionStorage.getItem("phidim_pending_comment_draft");
+      if (draft) {
+        setNewCommentText(draft);
         setShowComments(true);
+        setIsAddingComment(true);
         sessionStorage.removeItem("phidim_pending_comment_draft");
-        if (isAuthenticated) {
-          triggerToast("Welcome back! Your comment draft is ready to submit. ✨");
-        }
       }
-    } catch (e) { }
-  }, [isAuthenticated]);
+    } catch {}
+  }, []);
 
-  const saveComments = (updated) => {
-    setComments(updated);
-    try {
-      localStorage.setItem("phidim_homepage_comments_v7", JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to save comments", e);
-    }
-  };
+  useEffect(() => {
+    if (!article?.id) return;
+    const controller = new AbortController();
+    setCommentsStatus("loading");
+    fetchDjangoComments(article.id, { signal: controller.signal }).then((saved) => {
+      if (controller.signal.aborted) return;
+      setComments(saved);
+      setCommentsStatus("ready");
+    }).catch(() => {
+      if (!controller.signal.aborted) setCommentsStatus("error");
+    });
+    return () => controller.abort();
+  }, [article?.id, commentsReloadKey]);
+
+  useEffect(() => {
+    setCommentError("");
+    setIsSubmittingComment(false);
+    return () => {
+      commentRequest.current?.abort();
+      commentRequest.current = null;
+    };
+  }, [article?.id]);
+
+  const saveComments = (updated) => setComments(updated);
 
   // Helper to extract text for current selected language (Nepali or English)
   const getCommentText = (item, lang) => {
@@ -302,74 +152,51 @@ export function HomepageCommentSection() {
   };
 
   const handleAddComment = async (e) => {
-    if (e) e.preventDefault();
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
-
+    e?.preventDefault();
+    if (!article || commentRequest.current || commentsStatus === "loading") return;
     const trimmed = newCommentText.trim();
     if (!trimmed) return;
-
-    const tempId = `cmt-${Date.now()}`;
-    const authorName = user?.displayName || user?.name || "Community Member";
-    const authorRole = user?.role || "Verified Visitor";
-    const authorAvatar =
-      user?.avatar ||
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
-
-    const newCmt = {
-      id: tempId,
-      author: {
-        name: authorName,
-        avatarUrl: authorAvatar,
-        role: authorRole,
-      },
-      translations: {
-        Nepali: trimmed,
-        English: trimmed,
-      },
-      text: trimmed,
-      likes: 0,
-      dislikes: 0,
-      createdAt: "Just now",
-      isCardStyle: true,
-      replies: [],
-    };
-
-    const updated = [comments[0], newCmt, ...comments.slice(1)];
-    saveComments(updated);
-    setNewCommentText("");
-    setShowComments(true);
-
-    const updatedReactions = { ...reactions, [tempId]: "like" };
-    setReactions(updatedReactions);
+    setCommentError("");
+    if (!isAuthenticated) {
+      setShowLoginPrompt(true);
+      try { sessionStorage.setItem("phidim_pending_comment_draft", trimmed); } catch {}
+      return;
+    }
+    if (!/^[1-9]\d*$/.test(String(user?.id ?? ""))) {
+      setCommentError("Please sign in with a valid user account to comment.");
+      return;
+    }
+    const controller = new AbortController();
+    commentRequest.current = controller;
+    setIsSubmittingComment(true);
     try {
-      localStorage.setItem("phidim_homepage_comment_reactions", JSON.stringify(updatedReactions));
-    } catch (err) { }
-
-    triggerToast("Your comment has been posted to the discussion! 🎉");
-
-    // Sync to Django Backend Models
-    try {
-      const saved = await postDjangoComment({
-        text: trimmed,
-        articleId: 1,
-        userId: user?.djangoId || (typeof user?.id === "number" ? user.id : null),
-      });
-      if (saved && saved.djangoId) {
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === tempId ? { ...c, ...saved, id: saved.id, djangoId: saved.djangoId } : c
-          )
-        );
+      const saved = await postDjangoComment({ text: trimmed, articleId: article.id, userId: user.id, signal: controller.signal });
+      if (controller.signal.aborted) return;
+      // A scalar user ID in the response has no display fields; use this session's profile.
+      const author = {
+        ...saved.author,
+        name: saved.author.name === "Community Member" ? user.displayName || user.name || saved.author.name : saved.author.name,
+        avatarUrl: saved.author.avatarUrl === "/logo.png" ? user.avatar || saved.author.avatarUrl : saved.author.avatarUrl,
+      };
+      setComments(prev => [{ ...saved, author }, ...prev.filter(c => c.id !== saved.id)]);
+      setNewCommentText("");
+      setIsAddingComment(false);
+      setShowLoginPrompt(false);
+      setShowComments(true);
+      try { sessionStorage.removeItem("phidim_pending_comment_draft"); } catch {}
+      triggerToast("Your comment has been posted to the discussion! 🎉");
+    } catch (error) {
+      if (!controller.signal.aborted) setCommentError(error.message || "Unable to post your comment. Please try again.");
+    } finally {
+      if (commentRequest.current === controller) {
+        commentRequest.current = null;
+        setIsSubmittingComment(false);
       }
-    } catch (err) {
-      console.warn("Failed to sync comment to Django database:", err);
     }
   };
 
   const handleAddReply = async (parentCommentId) => {
+    if (!article) return;
     if (!BACKEND_READY) {
       triggerBackendWarning();
       return;
@@ -428,7 +255,7 @@ export function HomepageCommentSection() {
         const savedReply = await postDjangoReply({
           commentDjangoId,
           replyText: trimmed,
-          articleId: 1,
+          articleId: article.id,
           userId: user?.djangoId || (typeof user?.id === "number" ? user.id : null),
         });
         if (savedReply && savedReply.djangoId) {
@@ -486,7 +313,7 @@ export function HomepageCommentSection() {
     const updatedReactions = { ...reactions, [id]: nextReaction };
     setReactions(updatedReactions);
     try {
-      localStorage.setItem("phidim_homepage_comment_reactions", JSON.stringify(updatedReactions));
+      localStorage.setItem("phidim_article_reactions_" + article.id, JSON.stringify(updatedReactions));
     } catch (err) { }
 
     const targetComment = comments.find((c) => c.id === id);
@@ -529,8 +356,8 @@ export function HomepageCommentSection() {
   };
 
   const handleShare = (item) => {
-    const activeText = getCommentText(item, activeLang);
-    const shareText = `"${activeText}" — ${item.author.name} on Phidim Service (https://phidimservice.com.np)`;
+    const activeText = item.content || getCommentText(item, activeLang);
+    const shareText = `"${activeText}" — ${item.title || item.author?.name || "Article"} on Phidim Service (https://phidimservice.com.np)`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareText);
       setCopiedId(item.id);
@@ -548,17 +375,7 @@ export function HomepageCommentSection() {
   };
 
 
-  // Only Nepali and English
-  const languageOptions = [
-    { id: "Nepali", label: "नेपाली", fullLabel: "Nepali (नेपाली)", flag: "🇳🇵" },
-    { id: "English", label: "English", fullLabel: "English", flag: "🇬🇧" },
-  ];
-
-  // The main featured post is item 0 (DhanRaj Sherma's thought)
-  const featuredPost = comments[0] || INITIAL_COMMENTS[0];
-
-  // The comments on this post are items 1..N
-  const postComments = comments.slice(1);
+  const postComments = comments;
   const visiblePostComments = postComments.slice(0, visibleCount);
   const hasMoreComments = postComments.length > visibleCount;
 
@@ -567,6 +384,17 @@ export function HomepageCommentSection() {
     (acc, c) => acc + 1 + (c.replies?.length || 0),
     0
   );
+
+  if (articleStatus !== "ready" || !article) {
+    return (
+      <div className="w-full py-6 border-y border-gray-300 dark:border-slate-700 text-sm text-gray-600 dark:text-gray-300" role={articleStatus === "error" ? "alert" : "status"}>
+        {articleStatus === "loading" ? "Loading article…" : articleStatus === "empty" ? "No articles available yet." : "Unable to load the article."}
+        {articleStatus === "error" && (
+          <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="ml-3 font-bold text-emerald-600 hover:underline cursor-pointer">Retry</button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full font-site">
@@ -580,205 +408,32 @@ export function HomepageCommentSection() {
 
       {/* OPEN FULL PAGE SECTION (NO BOXES, SEPARATED BY LINES ONLY) */}
       <div className="w-full space-y-3">
-        
-        {/* 1. TOP SECTION WITH STACKED NEPALI & ENGLISH TRANSLATE (MATCHING SCREENSHOT) */}
-        <div className="flex items-stretch justify-between border-y border-gray-300 dark:border-slate-700">
-          
-          {/* Left: Author Header + Post Statement Text */}
-          <div className="flex-1 py-3 pr-4 sm:pr-6 space-y-2">
-            {/* Author Header */}
-            <div className="flex items-center gap-2.5">
-              <div className="relative w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden ring-2 ring-emerald-500/40 bg-slate-900 shrink-0">
-                <img
-                  src={featuredPost.author.avatarUrl}
-                  alt={featuredPost.author.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex items-center gap-2 text-xs md:text-sm font-bold text-gray-800 dark:text-gray-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-gray-900 dark:text-white font-extrabold tracking-tight">
-                  {featuredPost.author.name}
-                </span>
-                <span className="text-gray-400 dark:text-gray-500">•</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                  {featuredPost.author.role}
-                </span>
-              </div>
-            </div>
 
-            {/* Post Statement Text with Read More toggle */}
-            {(() => {
-              const fullText = getCommentText(featuredPost, activeLang);
-              const isLong = fullText.length > 160;
-              const displayText = !isPostExpanded && isLong ? fullText.slice(0, 160) + "..." : fullText;
-
-              return (
-                <p
-                  key={activeLang}
-                  className="text-xs sm:text-[13px] md:text-sm text-gray-800 dark:text-gray-100 leading-relaxed font-normal animate-in fade-in duration-200"
-                >
-                  {displayText}
-                  {isLong && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPostExpanded(!isPostExpanded)}
-                      className="ml-1.5 font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer inline-block"
-                    >
-                      {isPostExpanded ? "Show less" : "Read more"}
-                    </button>
-                  )}
-                </p>
-              );
-            })()}
-          </div>
-
-          {/* Right: Stacked Nepali / English Translate Box with Divider Lines as in Screenshot */}
-          <div className="border-l border-gray-300 dark:border-slate-700 flex flex-col justify-stretch shrink-0 w-24 sm:w-28 md:w-32">
-            {/* Nepali on Top */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveLang("Nepali");
-                triggerToast("Language switched to Nepali (नेपाली) 🌐");
-              }}
-              className={`flex-1 flex items-center justify-center px-3 py-2 text-xs sm:text-sm font-bold border-b border-gray-300 dark:border-slate-700 transition-colors cursor-pointer ${
-                activeLang === "Nepali"
-                  ? "bg-emerald-600 text-white font-extrabold"
-                  : "bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800"
-              }`}
-            >
-              Nepali
+        <article className="py-3 space-y-3 border-y border-gray-300 dark:border-slate-700">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{article?.title}</h2>
+          {article?.created_at && !Number.isNaN(Date.parse(article.created_at)) && (
+            <time dateTime={article.created_at} className="block text-xs text-gray-500">
+              {new Date(article.created_at).toLocaleDateString()}
+            </time>
+          )}
+          {article?.image && !imageFailed && (
+            <img src={article.image} alt={article.title} onError={() => setImageFailed(true)}
+              className="w-full max-h-96 object-contain rounded-xl" />
+          )}
+          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words text-gray-800 dark:text-gray-100">
+            {isPostExpanded || article.content.length <= 160 ? article.content : article.content.slice(0, 160) + "…"}
+          </p>
+          {article.content.length > 160 && (
+            <button type="button" aria-expanded={isPostExpanded} onClick={() => setIsPostExpanded(!isPostExpanded)}
+              className="text-sm font-bold text-blue-600 hover:underline cursor-pointer">
+              {isPostExpanded ? "Show less" : "Read more"}
             </button>
-
-            {/* English on Bottom */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveLang("English");
-                triggerToast("Language switched to English 🌐");
-              }}
-              className={`flex-1 flex items-center justify-center px-3 py-2 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
-                activeLang === "English"
-                  ? "bg-emerald-600 text-white font-extrabold"
-                  : "bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800"
-              }`}
-            >
-              English
-            </button>
-          </div>
-
-        </div>
-
-        {/* 2. SIGNATURES & POST ACTIONS */}
-        <div>
-
-          {/* Signatures & Post Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            {/* Signatures */}
-            <div className="flex flex-wrap items-center gap-5 text-xs sm:text-[13px] text-gray-800 dark:text-gray-300 font-medium">
-              {/* It Founder DhanRaj Sherma */}
-              <span className="inline-flex items-center gap-1.5">
-  <span className="text-gray-600 dark:text-gray-400 font-normal">
-    IT Founder
-  </span>
-
-  <a
-    href="https://phidimbazar.com/"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="relative font-bold text-blue-600 dark:text-blue-400 inline-block pb-0.5"
-  >
-    DhanRaj Sherma
-
-    <svg
-      className="absolute -bottom-0.5 left-0 w-full h-1.5 text-blue-600 dark:text-blue-400 overflow-visible"
-      viewBox="0 0 100 12"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M2 3C25 10 75 10 98 3"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  </a>
-</span>
-
-              {/* Full Stack Developer Semik Serma */}
-             <span className="inline-flex items-center gap-1.5">
-  <span className="text-gray-600 dark:text-gray-400 font-normal">
-    Full Stack Developer
-  </span>
-
-  <a
-    href="https://portfolio.phidimservice.com.np"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="relative font-bold text-blue-600 dark:text-blue-400 inline-block pb-0.5"
-  >
-    Semik Serma
-
-    <svg
-      className="absolute -bottom-0.5 left-0 w-full h-1.5 text-blue-600 dark:text-blue-400 overflow-visible"
-      viewBox="0 0 100 12"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M2 3C25 10 75 10 98 3"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  </a>
-</span>
-            </div>
-
-            {/* Post Action Buttons: Like, Dislike, Share */}
-            <div className="flex items-center gap-4 text-gray-700 dark:text-gray-300">
-              <button
-                onClick={() => handleReaction(featuredPost.id, "like")}
-                className={`inline-flex items-center gap-1 text-xs sm:text-sm font-semibold transition-colors cursor-pointer hover:text-blue-600 ${
-                  reactions[featuredPost.id] === "like" ? "text-blue-600 font-bold" : ""
-                }`}
-                title="Like"
-              >
-                <ThumbsUp
-                  className={`w-4 h-4 ${
-                    reactions[featuredPost.id] === "like" ? "fill-blue-600 text-blue-600" : ""
-                  }`}
-                />
-                {featuredPost.likes > 0 && <span className="text-xs">{featuredPost.likes}</span>}
-              </button>
-
-              <button
-                onClick={() => handleReaction(featuredPost.id, "dislike")}
-                className={`inline-flex items-center gap-1 text-xs sm:text-sm font-semibold transition-colors cursor-pointer hover:text-red-600 ${
-                  reactions[featuredPost.id] === "dislike" ? "text-red-600 font-bold" : ""
-                }`}
-                title="Dislike"
-              >
-                <ThumbsDown
-                  className={`w-4 h-4 ${
-                    reactions[featuredPost.id] === "dislike" ? "fill-red-600 text-red-600" : ""
-                  }`}
-                />
-              </button>
-
-              <button
-                onClick={() => handleShare(featuredPost)}
-                className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold transition-colors cursor-pointer hover:text-emerald-600"
-                title="Share post"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+          <button type="button" onClick={() => handleShare(article)}
+            className="flex items-center gap-1 text-xs font-semibold text-emerald-600 cursor-pointer" title="Share article">
+            <Share2 className="w-4 h-4" /> Share
+          </button>
+        </article>
 
         {/* LINE SEPARATOR ONLY */}
         <div className="border-t border-gray-200 dark:border-slate-800 my-2" />
@@ -832,15 +487,14 @@ export function HomepageCommentSection() {
           {isAddingComment && (
             <div className="pt-1 animate-in fade-in duration-200">
               <form
-                onSubmit={(e) => {
-                  handleAddComment(e);
-                  setIsAddingComment(false);
-                }}
+                onSubmit={handleAddComment}
                 className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-full px-3.5 py-1.5 shadow-2xs focus-within:ring-2 focus-within:ring-emerald-500/20"
               >
                 <input
                   ref={inputRef}
                   type="text"
+                  aria-label="Comment text"
+                  disabled={isSubmittingComment}
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
                   placeholder="Show your feelings through adding a comment..."
@@ -848,25 +502,44 @@ export function HomepageCommentSection() {
                 />
                 <button
                   type="submit"
-                  disabled={!newCommentText.trim()}
+                  disabled={!newCommentText.trim() || isSubmittingComment || commentsStatus === "loading"}
                   className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-full text-xs font-bold cursor-pointer transition-colors"
                 >
-                  Post
+                  {isSubmittingComment ? "Posting…" : "Post"}
                 </button>
                 <button
                   type="button"
+                  disabled={isSubmittingComment}
                   onClick={() => setIsAddingComment(false)}
                   className="px-2 py-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 text-xs font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
               </form>
+              {commentError && <p role="alert" className="mt-2 text-xs text-red-600">{commentError}</p>}
+              {showLoginPrompt && !isAuthenticated && (
+                <p role="alert" className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                  Please sign in to post a comment. Your draft will be saved.{" "}
+                  <button type="button" className="font-bold text-emerald-600 hover:underline cursor-pointer" onClick={() => {
+                    try { sessionStorage.setItem("phidim_pending_comment_draft", newCommentText); } catch {}
+                    router.push("/login?redirect=/");
+                  }}>Sign in</button>
+                </p>
+              )}
             </div>
           )}
 
           {/* Expandable Comments List (No Box Around Comments, Separated by Lines) */}
           {showComments && (
             <div className="space-y-3 pt-1 divide-y divide-gray-200 dark:divide-slate-800 animate-in fade-in duration-300">
+              {commentsStatus === "loading" && <p role="status" className="text-xs text-gray-500">Loading comments…</p>}
+              {commentsStatus === "error" && (
+                <p role="alert" className="text-xs text-red-600">
+                  Unable to load comments.{" "}
+                  <button type="button" disabled={isSubmittingComment} onClick={() => setCommentsReloadKey(key => key + 1)} className="font-bold hover:underline cursor-pointer">Retry comments</button>
+                </p>
+              )}
+              {commentsStatus === "ready" && comments.length === 0 && <p className="text-xs text-gray-500">No comments yet. Be the first to comment.</p>}
               {visiblePostComments.map((cmt) => {
                 const textInLang = getCommentText(cmt, activeLang);
                 const isReplying = activeReplyId === cmt.id;

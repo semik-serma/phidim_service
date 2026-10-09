@@ -11,51 +11,27 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { createBooking } from "@/lib/bookingStore";
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { BookingFields, useBookingForm } from "@/components/BookingFields";
 
 export function QuickBookingCard({ onConfirmBooking }) {
   const { user } = useAuth();
-  const [category, setCategory] = useState("CCTV & Security Systems");
+  const bookingForm = useBookingForm();
+  const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState("DishHome & TV Repair");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [timeSlot, setTimeSlot] = useState("10:00 AM - 12:00 PM");
   const [location, setLocation] = useState("Phidim Ward 1 (Bazaar)");
-  const [technician, setTechnician] = useState("Any Available Technician");
   const [isEmergency, setIsEmergency] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
-
-    const techName = technician === "Any Available Technician" ? "Rajesh Tamang" : technician.split(" (")[0];
-
-    const saved = createBooking({
-      serviceName: `${category} Service & Inspection`,
-      category,
-      customerName: user?.name || "Semik Serma",
-      customerEmail: user?.email || "",
-      customerPhone: user?.phone || "+977 9862772400",
-      address: location,
-      date,
-      timeSlot: isEmergency ? "⚡ Emergency (Immediate 30m Dispatch)" : timeSlot,
-      isEmergency,
+    const saved = await bookingForm.submit({
+      serviceName: category + " Service & Inspection", category,
+      customerName: user?.name || user?.displayName || "",
+      customerEmail: user?.email || "", customerPhone: user?.phone || "",
+      address: location, date, notes, isEmergency,
       basePrice: isEmergency ? 2500 : 1500,
-      technician: {
-        name: techName,
-        specialty: category,
-        phone: "+977 9842109842",
-        email: "tech@phidim.np",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-        rating: 4.95,
-      },
     });
-
-    if (onConfirmBooking) {
-      onConfirmBooking(saved || { category, date, timeSlot, location, technician, isEmergency });
-    }
+    if (saved && onConfirmBooking) onConfirmBooking(saved);
   };
 
   return (
@@ -73,11 +49,11 @@ export function QuickBookingCard({ onConfirmBooking }) {
               Quick 1-Click Service Booking
             </h3>
             <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold border border-amber-500/30">
-              Instant Dispatch
+              Service Request
             </span>
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Select your service details for instant dispatch in Panchthar
+            Select your service details for service bookings in Panchthar
           </p>
         </div>
 
@@ -92,7 +68,7 @@ export function QuickBookingCard({ onConfirmBooking }) {
           }`}
         >
           <Zap size={13} className={isEmergency ? "fill-white animate-pulse" : "text-amber-500"} />
-          <span>{isEmergency ? "Emergency (30m Active)" : "Emergency Mode"}</span>
+          <span>{isEmergency ? "Urgent request" : "Emergency Mode"}</span>
         </button>
       </div>
 
@@ -124,28 +100,11 @@ export function QuickBookingCard({ onConfirmBooking }) {
           </label>
           <input
             type="date"
+            required
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="w-full h-8.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
-        </div>
-
-        {/* 3. Time Slot */}
-        <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
-            <Clock size={11} className="text-blue-500" /> Preferred Slot
-          </label>
-          <select
-            value={timeSlot}
-            onChange={(e) => setTimeSlot(e.target.value)}
-            className="w-full h-8.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            <option>08:00 AM - 10:00 AM</option>
-            <option>10:00 AM - 12:00 PM</option>
-            <option>01:00 PM - 03:00 PM</option>
-            <option>03:00 PM - 05:00 PM</option>
-            <option>05:00 PM - 07:00 PM</option>
-          </select>
         </div>
 
         {/* 4. Location */}
@@ -167,28 +126,16 @@ export function QuickBookingCard({ onConfirmBooking }) {
           </select>
         </div>
 
-        {/* 5. Technician */}
-        <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
-            <UserCheck size={11} className="text-purple-500" /> Preferred Tech
-          </label>
-          <select
-            value={technician}
-            onChange={(e) => setTechnician(e.target.value)}
-            className="w-full h-8.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            <option>Any Available Technician</option>
-            <option>Rajesh Tamang (CCTV/DTH)</option>
-            <option>Anita Gurung (Electrical)</option>
-            <option>Suman Limbu (AC/Cooling)</option>
-            <option>Kiran Gurung (Networking)</option>
-          </select>
-        </div>
+        <BookingFields form={bookingForm} />
+        <label className="col-span-full text-xs font-bold space-y-1">Problem details *
+          <textarea required value={notes} onChange={e => setNotes(e.target.value)} placeholder="Describe what needs repair…" className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" />
+        </label>
 
         {/* 6. Submit Button */}
         <div className="flex items-end">
           <button
             type="submit"
+            disabled={bookingForm.disabled}
             className="w-full h-8.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow hover:scale-102 active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <span>Confirm</span>

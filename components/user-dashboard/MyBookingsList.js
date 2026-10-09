@@ -33,8 +33,9 @@ import {
   ChevronUp,
   AlertCircle,
 } from "lucide-react";
+import { BookingFields, useBookingForm } from "@/components/BookingFields";
 import { useAuth } from "@/context/AuthContext";
-import { getBookingsList, subscribeBookings, createBooking, cancelBooking } from "@/lib/bookingStore";
+import { getBookingsList, subscribeBookings, cancelBooking } from "@/lib/bookingStore";
 import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 import { SERVICES, SERVICE_CATEGORIES } from "@/data/services";
 
@@ -76,20 +77,12 @@ export const USER_STATUS_CLASSES = {
   },
 };
 
-const TECHNICIANS_LIST = [
-  { name: "Rajesh Tamang", specialty: "CCTV & Fiber Network Lead", rating: 4.98, phone: "+977 9842109842", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" },
-  { name: "Anita Gurung", specialty: "AC & Refrigeration Engineer", rating: 4.95, phone: "+977 9842109843", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80" },
-  { name: "Niraj Sunuwar", specialty: "DishHome DTH & CCTV Specialist", rating: 4.9, phone: "+977 9862772457", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80" },
-  { name: "Subash Tamang", specialty: "Master Electrician & Inverter Tech", rating: 4.92, phone: "+977 9801122334", avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80" },
-  { name: "Prem Rai", specialty: "Satellite TV & Sanitary Plumber", rating: 4.88, phone: "+977 9812345678", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" },
-  { name: "Komal Bhattarai", specialty: "Computer OS & Hardware IT", rating: 4.86, phone: "+977 9852671122", avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80" },
-];
-
 export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
   const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState("All");
   const [isAddingBooking, setIsAddingBooking] = useState(false);
+  const bookingForm = useBookingForm(isAddingBooking);
   const [activeInvoiceBooking, setActiveInvoiceBooking] = useState(null);
   const [successBookingBanner, setSuccessBookingBanner] = useState(null);
 
@@ -101,8 +94,6 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
   const [customerPhone, setCustomerPhone] = useState(user?.phone || "+977 9862772457");
   const [address, setAddress] = useState("Phidim Ward 1 (Bazaar), Panchthar");
   const [bookingDate, setBookingDate] = useState(new Date().toISOString().split("T")[0]);
-  const [timeSlot, setTimeSlot] = useState("Morning (09:00 AM - 12:00 PM)");
-  const [selectedTechName, setSelectedTechName] = useState("Rajesh Tamang");
   const [isEmergency, setIsEmergency] = useState(false);
   const [notes, setNotes] = useState("");
   const [basePrice, setBasePrice] = useState(SERVICES[0]?.basePrice || 3500);
@@ -130,13 +121,8 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
     }
   };
 
-  const handleCreateBookingSubmit = (e) => {
+  const handleCreateBookingSubmit = async (e) => {
     e.preventDefault();
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
-
     let serviceTitle = "";
     if (selectedServiceId === "custom") {
       serviceTitle = customServiceName.trim() || `${selectedCategory} Repair & Inspection`;
@@ -145,9 +131,7 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
       serviceTitle = srv ? srv.name : customServiceName || `${selectedCategory} Service`;
     }
 
-    const assignedTechObj = TECHNICIANS_LIST.find((t) => t.name === selectedTechName) || TECHNICIANS_LIST[0];
-
-    const newBooking = createBooking({
+    const newBooking = await bookingForm.submit({
       serviceName: serviceTitle,
       category: selectedCategory,
       customerName: customerName.trim() || "Customer User",
@@ -155,20 +139,10 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
       customerPhone: customerPhone.trim() || "+977 9862772457",
       address: address.trim() || "Phidim-1, Panchthar",
       date: bookingDate,
-      timeSlot: isEmergency ? "⚡ Emergency (Immediate 30m Dispatch)" : timeSlot,
       isEmergency: isEmergency,
       basePrice: isEmergency ? basePrice + 500 : basePrice,
       amount: `Rs. ${(isEmergency ? basePrice + 500 : basePrice).toLocaleString("en-IN")}`,
       notes: notes,
-      status: "Accepted",
-      technician: {
-        name: assignedTechObj.name,
-        specialty: assignedTechObj.specialty,
-        phone: assignedTechObj.phone,
-        email: "tech@phidim.np",
-        avatar: assignedTechObj.avatar,
-        rating: assignedTechObj.rating,
-      },
     });
 
     if (newBooking) {
@@ -237,8 +211,8 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
                   <h4 className="text-base font-black">Booking Successfully Added!</h4>
                 </div>
                 <p className="text-xs text-emerald-100 mt-0.5">
-                  Technician <strong>{successBookingBanner.technician?.name}</strong> has been assigned for{" "}
-                  <strong>{successBookingBanner.serviceName}</strong> on {successBookingBanner.date}.
+                  Booking with <strong>{successBookingBanner.technician?.name}</strong> saved for{" "}
+                  <strong>{successBookingBanner.serviceName}</strong> on {successBookingBanner.bookingDate}. Status: {successBookingBanner.status}.
                 </p>
               </div>
             </div>
@@ -417,44 +391,6 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
                   />
                 </div>
 
-                {/* 7. Time Slot */}
-                <div>
-                  <label className="block text-xs font-black text-emerald-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <Clock size={13} className="text-emerald-400" />
-                    <span>Preferred Time Slot</span>
-                  </label>
-                  <select
-                    value={timeSlot}
-                    onChange={(e) => setTimeSlot(e.target.value)}
-                    className="w-full h-11 px-3.5 rounded-xl border border-emerald-700/50 bg-slate-800 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  >
-                    <option>Morning (08:00 AM - 11:00 AM)</option>
-                    <option>Morning (09:00 AM - 12:00 PM)</option>
-                    <option>Afternoon (01:00 PM - 04:00 PM)</option>
-                    <option>Evening (04:00 PM - 07:00 PM)</option>
-                    <option>⚡ Emergency Instant (30 Minutes)</option>
-                  </select>
-                </div>
-
-                {/* 8. Preferred Technician */}
-                <div>
-                  <label className="block text-xs font-black text-emerald-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <UserCheck size={13} className="text-emerald-400" />
-                    <span>Select Technician</span>
-                  </label>
-                  <select
-                    value={selectedTechName}
-                    onChange={(e) => setSelectedTechName(e.target.value)}
-                    className="w-full h-11 px-3.5 rounded-xl border border-emerald-700/50 bg-slate-800 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  >
-                    {TECHNICIANS_LIST.map((t) => (
-                      <option key={t.name} value={t.name}>
-                        {t.name} ({t.specialty}) ★ {t.rating}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 {/* 9. Estimated Base Rate */}
                 <div>
                   <label className="block text-xs font-black text-emerald-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -473,12 +409,16 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
                 </div>
               </div>
 
+              <BookingFields form={bookingForm} />
+
               {/* Notes & Emergency Toggle */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                 <div className="md:col-span-2">
                   <input
                     type="text"
                     placeholder="Specific notes or issue description (e.g. CCTV night vision black & white, wire severed in room 2)..."
+                    required
+                    aria-label="Problem details"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full h-11 px-3.5 rounded-xl border border-emerald-700/50 bg-slate-800 text-xs font-medium text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -495,7 +435,7 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
                   }`}
                 >
                   <Zap size={14} className={isEmergency ? "fill-white animate-pulse" : "text-amber-400"} />
-                  <span>{isEmergency ? "⚡ Emergency Dispatch (30m)" : "Normal Dispatch"}</span>
+                  <span>{isEmergency ? "Urgent request" : "Normal request"}</span>
                 </button>
               </div>
 
@@ -510,6 +450,7 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
                 </button>
                 <button
                   type="submit"
+                  disabled={bookingForm.disabled}
                   className="px-7 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/30 hover:scale-102 transition-transform flex items-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 size={16} />
@@ -580,7 +521,7 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
                       </span>
                       {b.isEmergency && (
                         <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500 text-white animate-pulse">
-                          ⚡ 30m Emergency
+                          Urgent request
                         </span>
                       )}
                     </div>

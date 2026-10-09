@@ -17,13 +17,14 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/context/AuthContext";
-import { createBooking } from "@/lib/bookingStore";
-import { triggerBackendWarning, BACKEND_READY, handleUnauthenticatedBooking } from "@/lib/backendWarning";
+import { BookingFields, useBookingForm } from "@/components/BookingFields";
+import { handleUnauthenticatedBooking } from "@/lib/backendWarning";
 import { SERVICES } from "@/data/services";
 import Link from "next/link";
 
 export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess }) {
   const { user, isAuthenticated } = useAuth();
+  const bookingForm = useBookingForm(isOpen);
 
   const [currentService, setCurrentService] = useState(service || SERVICES[0]);
 
@@ -32,7 +33,6 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
     customerPhone: "+977 ",
     address: "Phidim-1, Panchthar",
     preferredDate: new Date().toISOString().split("T")[0],
-    timeSlot: "Morning (09:00 AM - 12:00 PM)",
     notes: "",
   });
 
@@ -78,19 +78,14 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
       if (onClose) onClose();
       handleUnauthenticatedBooking();
       return;
     }
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
-
-    const saved = createBooking({
+    const saved = await bookingForm.submit({
       serviceName: activeService.name,
       category: activeService.category,
       basePrice: activeService.basePrice || 500,
@@ -99,19 +94,10 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
       customerPhone: formData.customerPhone,
       address: formData.address,
       date: formData.preferredDate,
-      timeSlot: formData.timeSlot,
       notes: formData.notes,
-      isEmergency: formData.timeSlot.includes("Emergency"),
-      technician: {
-        name: "Rajesh Tamang",
-        specialty: activeService.category || "Field Technician",
-        phone: "+977 9842109842",
-        email: "rajesh@phidim.np",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-        rating: 4.95,
-      },
     });
 
+    if (!saved) return;
     setCreatedBooking(saved);
     setIsSubmitted(true);
 
@@ -239,26 +225,16 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1">Time Slot</label>
-                    <select
-                      value={formData.timeSlot}
-                      onChange={(e) => setFormData({ ...formData, timeSlot: e.target.value })}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:border-emerald-500 cursor-pointer"
-                    >
-                      <option>Morning (09:00 AM - 12:00 PM)</option>
-                      <option>Afternoon (12:00 PM - 04:00 PM)</option>
-                      <option>Evening (04:00 PM - 07:00 PM)</option>
-                      <option>⚡ Emergency (Immediate Dispatch)</option>
-                    </select>
-                  </div>
+
                 </div>
 
+                <BookingFields form={bookingForm} />
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-1">
-                    Problem Details / Instructions (Optional)
+                    Problem Details *
                   </label>
                   <textarea
+                    required
                     rows={2}
                     placeholder="Describe any specific faults or notes for the technician..."
                     value={formData.notes}
@@ -277,6 +253,7 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
                   </button>
                   <button
                     type="submit"
+                    disabled={bookingForm.disabled}
                     className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-black shadow-lg shadow-emerald-600/30 hover:scale-102 transition-transform cursor-pointer"
                   >
                     Confirm Service Booking
@@ -292,23 +269,23 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
               </div>
               <div>
                 <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-mono font-black text-xs">
-                  BOOKING ID: #{createdBooking?.id || "PS-9482"}
+                  BOOKING ID: #{createdBooking?.id}
                 </span>
-                <h3 className="text-xl font-black mt-2">Booking Confirmed!</h3>
+                <h3 className="text-xl font-black mt-2">Booking Created!</h3>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 max-w-sm mx-auto">
-                Thank you, <strong>{formData.customerName || "Valued Customer"}</strong>. A certified technician has been scheduled for{" "}
-                <strong>{activeService.name}</strong> on <strong>{formData.preferredDate}</strong> ({formData.timeSlot}).
+                Thank you, <strong>{formData.customerName || "Valued Customer"}</strong>. Your booking request has been saved for{" "}
+                <strong>{activeService.name}</strong> on <strong>{formData.preferredDate}</strong> ({bookingForm.time + " Nepal time"}).
               </p>
 
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 text-left text-xs space-y-1">
                 <div className="flex justify-between font-bold">
-                  <span className="text-slate-500 dark:text-slate-400">Assigned Tech:</span>
-                  <span className="text-emerald-700 dark:text-emerald-300">{createdBooking?.technician?.name || "Rajesh Tamang"}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Selected technician:</span>
+                  <span className="text-emerald-700 dark:text-emerald-300">{createdBooking?.technician?.name}</span>
                 </div>
                 <div className="flex justify-between font-bold">
                   <span className="text-slate-500 dark:text-slate-400">Status:</span>
-                  <span className="text-emerald-600 dark:text-emerald-400">Confirmed (Dispatched)</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{createdBooking?.status}</span>
                 </div>
                 <div className="flex justify-between font-bold">
                   <span className="text-slate-500 dark:text-slate-400">Address:</span>
@@ -319,7 +296,7 @@ export function ServiceBookingModal({ isOpen, onClose, service, onBookingSuccess
               <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
                 <button
                   onClick={() => {
-                    const msg = `Hello Phidim Service! I just booked: ${activeService.name} (Booking #${createdBooking?.id || "PS-9482"}) for ${formData.preferredDate} (${formData.timeSlot}) at ${formData.address}. My phone is ${formData.customerPhone}.`;
+                    const msg = `Hello Phidim Service! I just booked: ${activeService.name} (Booking #${createdBooking?.id}) for ${formData.preferredDate} (${bookingForm.time + " Nepal time"}) at ${formData.address}. My phone is ${formData.customerPhone}.`;
                     window.open(`https://wa.me/9779862772457?text=${encodeURIComponent(msg)}`, "_blank");
                     onClose();
                   }}

@@ -3,10 +3,10 @@
  * Connects Next.js comment section with Django REST Framework backend
  */
 
-import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
+import { triggerBackendWarning, BACKEND_READY } from "../lib/backendWarning.js";
 
 export const DJANGO_API_BASE_URL =
-  process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://127.0.0.1:8000";
+  (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function formatRelativeTime(dateString) {
   if (!dateString) return "Just now";
@@ -31,15 +31,16 @@ function formatRelativeTime(dateString) {
 
 export function normalizeDjangoComment(c) {
   if (!c) return null;
+  const author = c.author || (typeof c.user === "object" ? c.user : null) || {};
   return {
     id: `django-cmt-${c.id}`,
     djangoId: c.id,
     author: {
-      id: c.author?.id,
-      username: c.author?.username || "member",
-      name: c.author?.name || "Community Member",
-      avatarUrl: c.author?.avatarUrl || "/dhanraj.png",
-      role: c.author?.role || "Verified Customer",
+      id: author.id ?? c.user,
+      username: author.username || "member",
+      name: author.displayName || author.name || author.username || "Community Member",
+      avatarUrl: author.avatarUrl || author.avatar || "/logo.png",
+      role: author.role || "Member",
     },
     translations: {
       Nepali: c.text,
@@ -75,66 +76,56 @@ export function normalizeDjangoComment(c) {
 /**
  * Fetch all comments from Django backend
  */
-export async function fetchDjangoComments(articleId = null) {
-  try {
-    const url = articleId
-      ? `${DJANGO_API_BASE_URL}/comments/?article=${articleId}`
-      : `${DJANGO_API_BASE_URL}/comments/`;
-
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Django API error: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const commentList = Array.isArray(data) ? data : data.results || [];
-    return commentList.map(normalizeDjangoComment);
-  } catch (error) {
-    console.warn("Failed to fetch comments from Django backend:", error?.message);
-    return null;
+export async function fetchDjangoComments(articleId, { signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL } = {}) {
+  if (!articleId) throw new Error("An article is required to load comments.");
+  const base = new URL(baseUrl.replace(/\/+$/, "") + "/");
+  let url = new URL("comments/", base);
+  url.searchParams.set("article", String(articleId));
+  const visited = new Set();
+  const comments = [];
+  while (url) {
+    if (visited.has(url.href)) throw new Error("Repeated comments pagination URL");
+    visited.add(url.href);
+    const response = await fetchImpl(url.href, { signal, cache: "no-store", headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Unable to load comments (" + response.status + ")");
+    const data = await response.json();
+    const page = Array.isArray(data) ? data : data?.results;
+    if (!Array.isArray(page)) throw new Error("Invalid comments response");
+    comments.push(...page.filter(c => c && (c.article == null || String(c.article?.id ?? c.article) === String(articleId))));
+    const next = !Array.isArray(data) && data.next ? new URL(data.next, url) : null;
+    if (next && next.origin !== base.origin) throw new Error("Unexpected comments pagination origin");
+    if (next) next.searchParams.set("article", String(articleId));
+    url = next;
   }
+  return comments.map(normalizeDjangoComment);
 }
 
-/**
- * Post a new comment to Django backend
- */
-export async function postDjangoComment({ text, articleId = 1, userId = null }) {
-  if (!BACKEND_READY) {
-    triggerBackendWarning();
-    return null;
+function readAccessToken() {
+  if (typeof document === "undefined") return "";
+  const cookie = document.cookie.split(";").map(part => part.trim()).find(part => part.startsWith("phidim_access_token="));
+  return cookie ? cookie.slice("phidim_access_token=".length) : "";
+}
+
+export async function postDjangoComment({ text, articleId, userId, token = readAccessToken(), signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL }) {
+  const trimmed = typeof text === "string" ? text.trim() : "";
+  if (!trimmed) throw new Error("Please enter a comment.");
+  if (!articleId) throw new Error("An article is required to comment.");
+  if (!/^[1-9]\d*$/.test(String(userId ?? ""))) throw new Error("Please sign in with a valid user account to comment.");
+  if (!token) throw new Error("Please sign in again to comment.");
+  const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/comments/", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ user: Number(userId), article: articleId, text: trimmed }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const detail = data && Object.entries(data).map(([key, value]) => key + ": " + (Array.isArray(value) ? value.join(" ") : String(value))).join("; ");
+    throw new Error(response.status === 401 ? "Your session expired. Please sign in again." : detail || "Unable to post comment (" + response.status + "). Please try again.");
   }
-  try {
-    const payload = {
-      text,
-      article: articleId || 1,
-    };
-    if (userId) payload.user = userId;
-
-    const res = await fetch(`${DJANGO_API_BASE_URL}/comments/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(`Failed to post comment: ${JSON.stringify(errData)}`);
-    }
-
-    const created = await res.json();
-    return normalizeDjangoComment(created);
-  } catch (error) {
-    console.error("Error posting comment to Django:", error);
-    throw error;
-  }
+  const created = await response.json();
+  if (!created?.id || typeof created.text !== "string") throw new Error("The server returned an invalid comment. Refresh comments before retrying.");
+  return normalizeDjangoComment(created);
 }
 
 /**

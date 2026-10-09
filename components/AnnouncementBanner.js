@@ -5,23 +5,8 @@ import { X, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { WeatherWidget } from "./WeatherWidget";
 
-// Global in-memory store (no backend needed — mirrors the admin panel writes)
-let _announcements = [
-  {
-    id: "ann-1",
-    text: "🎉 Special Offer — Up to 50% OFF on all AC servicing & electrical repairs this month! Use code PHIDIM50.",
-    color: "emerald",
-    active: true,
-    link: "",
-  },
-  {
-    id: "ann-2",
-    text: "📡 DishHome Ultra HD packages now available with 50% discount in Phidim. Free installation.",
-    color: "blue",
-    active: true,
-    link: "",
-  },
-];
+// Retain the shared helpers used by the existing admin panel.
+let _announcements = [];
 
 let _listeners = [];
 
@@ -68,27 +53,50 @@ const COLORS = {
 };
 
 export function AnnouncementBanner() {
-  const [announcements, setLocal] = useState(() =>
-    getAnnouncements().filter((a) => a.active)
-  );
+  const [announcements, setLocal] = useState([]);
   const [current, setCurrent] = useState(0);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     const unsub = subscribeAnnouncements((list) => {
-      setLocal(list.filter((a) => a.active));
+      setLocal(list.filter((a) => a?.active && typeof a.text === "string" && a.text.trim()));
       setCurrent(0);
-      setDismissed(false);
     });
-    return unsub;
+
+    async function loadAnnouncements() {
+      try {
+        const baseUrl = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+        const response = await fetch(`${baseUrl}/announcements/`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Failed to load announcements");
+        const data = await response.json();
+        const list = Array.isArray(data)
+          ? data
+              .filter((a) => a && typeof a.text === "string" && a.text.trim())
+              .map((a) => ({ ...a, text: a.text.trim(), active: true, color: "emerald", link: "" }))
+          : [];
+        if (!controller.signal.aborted) setAnnouncements(list);
+      } catch {
+        if (!controller.signal.aborted) setLocal([]);
+      }
+    }
+
+    loadAnnouncements();
+    return () => {
+      controller.abort();
+      unsub();
+    };
   }, []);
 
   // Auto-rotate every 5 s
   useEffect(() => {
-    if (announcements.length <= 1) return;
+    if (dismissed || announcements.length <= 1) return;
     const t = setInterval(() => setCurrent((p) => (p + 1) % announcements.length), 5000);
     return () => clearInterval(t);
-  }, [announcements.length]);
+  }, [announcements.length, dismissed]);
 
   const active = announcements[current];
   if (!active || dismissed) return null;
@@ -106,13 +114,13 @@ export function AnnouncementBanner() {
         className={`relative w-full ${palette.bar} text-white text-xs font-semibold overflow-hidden z-40 border-b border-white/10`}
       >
         <div className="max-w-[1700px] mx-auto px-3 sm:px-6 lg:px-8 py-1.5 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
-          
+
           {/* Left: Weather Detection (Rain Today, Degrees Celsius, Icon) */}
           <div className="flex items-center gap-2 shrink-0">
             <WeatherWidget />
           </div>
 
-          {/* Center: Offers Text with 50% Discounts & Rotating Announcements */}
+          {/* Center: Rotating Announcements */}
           <div className="flex items-center justify-center gap-2 flex-1 min-w-0 text-center">
             <Megaphone size={14} className="shrink-0 opacity-90 text-amber-300 animate-bounce" />
             <span className="truncate leading-snug font-bold text-xs sm:text-[13px]">

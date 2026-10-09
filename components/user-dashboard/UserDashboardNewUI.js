@@ -46,11 +46,11 @@ import {
   DollarSign
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { BookingFields, useBookingForm } from "@/components/BookingFields";
 import { useAuth } from "@/context/AuthContext";
 import { useCall } from "@/components/calls/CallProvider";
 import {
   getBookingsList,
-  createBooking,
   subscribeBookings
 } from "@/lib/bookingStore";
 import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
@@ -111,6 +111,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
   // Modals state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const bookingForm = useBookingForm(isBookingModalOpen);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [selectedBookingForTracking, setSelectedBookingForTracking] = useState(null);
   const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
@@ -125,7 +126,6 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   const [bookServiceId, setBookServiceId] = useState(SERVICES[0]?.id || "srv-cctv-install");
   const [bookAddress, setBookAddress] = useState("Phidim-1, Main Bazar, Panchthar");
   const [bookDate, setBookDate] = useState(new Date().toISOString().split("T")[0]);
-  const [bookTimeSlot, setBookTimeSlot] = useState("Morning (09:00 AM - 12:00 PM)");
   const [bookIsEmergency, setBookIsEmergency] = useState(false);
   const [bookNotes, setBookNotes] = useState("");
 
@@ -188,7 +188,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
     setBookings(getBookingsList(currentUser.email));
     const unsubscribe = subscribeBookings((newList) => {
       if (newList) {
-        setBookings(getBookingsList(currentUser.email));
+        setBookings(newList.filter(booking => !booking.customerEmail || booking.customerEmail.toLowerCase() === currentUser.email?.toLowerCase()));
       }
     });
     return () => unsubscribe();
@@ -227,7 +227,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = b.serviceName?.toLowerCase().includes(q);
-        const matchId = b.id?.toLowerCase().includes(q);
+        const matchId = String(b.id ?? "").toLowerCase().includes(q);
         const matchTech = b.technician?.name?.toLowerCase().includes(q);
         if (!matchName && !matchId && !matchTech) return false;
       }
@@ -236,15 +236,11 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   }, [bookings, tableFilter, serviceCategoryTab, searchQuery]);
 
   // Handle Book Service Submission
-  const handleConfirmBooking = (e) => {
+  const handleConfirmBooking = async (e) => {
     e.preventDefault();
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
     const serviceObj = SERVICES.find((s) => s.id === bookServiceId) || SERVICES[0];
 
-    const newBooking = createBooking({
+    const newBooking = await bookingForm.submit({
       serviceName: serviceObj.name,
       category: serviceObj.category,
       customerName: currentUser.displayName || currentUser.name || "Semik Serma",
@@ -252,24 +248,16 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
       customerPhone: currentUser.phone || "+977 9862772400",
       address: bookAddress,
       date: bookDate,
-      timeSlot: bookTimeSlot,
-      status: "Pending",
       amount: `Rs. ${serviceObj.basePrice?.toLocaleString() || "1,500"}`,
       numericAmount: serviceObj.basePrice || 1500,
       paymentStatus: "Cash / Fonepay on Completion",
       isEmergency: bookIsEmergency,
       notes: bookNotes,
-      technician: {
-        name: "Rajesh Tamang",
-        specialty: "CCTV & Electrical Lead",
-        phone: "+977 9842109842",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-        rating: 4.98,
-      },
     });
 
+    if (!newBooking) return;
     setIsBookingModalOpen(false);
-    showToast(`Booking ${newBooking?.id || "Created"} Confirmed! Technician assigned.`);
+    showToast(`Booking #${newBooking.id} created. Status: ${newBooking.status}.`);
     setBookNotes("");
   };
 
@@ -1260,25 +1248,17 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                       className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-neutral-300">Time Slot</label>
-                    <select
-                      value={bookTimeSlot}
-                      onChange={(e) => setBookTimeSlot(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
-                    >
-                      <option value="Morning (09:00 AM - 12:00 PM)">Morning (09:00 AM - 12:00 PM)</option>
-                      <option value="Afternoon (01:00 PM - 04:00 PM)">Afternoon (01:00 PM - 04:00 PM)</option>
-                      <option value="Evening (04:00 PM - 07:00 PM)">Evening (04:00 PM - 07:00 PM)</option>
-                    </select>
-                  </div>
+
                 </div>
+
+                <BookingFields form={bookingForm} />
 
                 {/* Problem Description */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-300">Specific Issue / Landmark Notes</label>
+                  <label className="text-[11px] font-semibold text-neutral-300">Problem details *</label>
                   <textarea
                     rows={2}
+                    required
                     value={bookNotes}
                     onChange={(e) => setBookNotes(e.target.value)}
                     placeholder="Briefly describe what needs repair..."
@@ -1296,7 +1276,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                     className="w-4 h-4 rounded accent-rose-500 cursor-pointer"
                   />
                   <label htmlFor="emergency-check" className="text-xs text-neutral-300 cursor-pointer">
-                    Urgent Emergency Dispatch (Technician departs immediately)
+                    Urgent service request
                   </label>
                 </div>
 
@@ -1304,6 +1284,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                 <div className="pt-2">
                   <button
                     type="submit"
+                    disabled={bookingForm.disabled}
                     className="w-full py-3 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all shadow-md active:scale-95"
                   >
                     Confirm Doorstep Booking

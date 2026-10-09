@@ -81,6 +81,11 @@ function GoogleIcon({ className }) {
   );
 }
 
+function loginDestination(fallback) {
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('redirect') === '/') return '/';
+  return fallback;
+}
+
 export default function LoginPage() {
   const { user, isAuthenticated, login, register, loginWithGoogle, updateUser } = useAuth();
   const router = useRouter();
@@ -94,7 +99,7 @@ export default function LoginPage() {
     if (isAuthenticated && user?.role) {
       const target = user.dashboardPath || '/user/dashboard';
       if (typeof window !== 'undefined') {
-        window.location.href = target;
+        window.location.href = loginDestination(target);
       }
     }
   }, [isAuthenticated, user]);
@@ -248,7 +253,7 @@ export default function LoginPage() {
       const targetDashboard = account?.dashboardPath || '/user/dashboard';
 
       if (typeof window !== 'undefined') {
-        window.location.href = targetDashboard;
+        window.location.href = loginDestination(targetDashboard);
       }
     } catch (err) {
       const msg = err?.message || 'Customer login failed. Please check your credentials.';
@@ -291,7 +296,7 @@ export default function LoginPage() {
 
       toast.success(`Welcome Technician ${account.name}! Redirecting to Technician Dashboard...`);
       if (typeof window !== 'undefined') {
-        window.location.href = account?.dashboardPath || '/technician/dashboard';
+        window.location.href = loginDestination(account?.dashboardPath || '/technician/dashboard');
       }
     } catch (err) {
       const msg = err?.message || 'Technician authentication failed. Please check your details.';
@@ -317,7 +322,7 @@ export default function LoginPage() {
       });
       toast.success(`Welcome System Admin ${account.name}! Redirecting to Admin Dashboard...`);
       if (typeof window !== 'undefined') {
-        window.location.href = account?.dashboardPath || '/admin/dashboard';
+        window.location.href = loginDestination(account?.dashboardPath || '/admin/dashboard');
       }
     } catch (err) {
       const msg = err?.message || 'Admin authentication failed. Please check your credentials.';
@@ -339,7 +344,7 @@ export default function LoginPage() {
       const targetDashboard = account?.dashboardPath || demo.dashboardPath || '/user/dashboard';
       toast.success(`Signed in as ${account.name}. Redirecting to ${targetDashboard}...`);
       if (typeof window !== 'undefined') {
-        window.location.href = targetDashboard;
+        window.location.href = loginDestination(targetDashboard);
       }
     } catch (err) {
       const msg = err?.message || 'Demo login error';
