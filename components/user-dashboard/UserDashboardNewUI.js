@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Settings,
   HelpCircle,
+  LogOut,
   Search,
   Bell,
   Sparkles,
@@ -614,6 +615,15 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
               <HelpCircle size={15} className="text-neutral-400" />
               <span>Support Center</span>
             </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+            >
+              <LogOut size={15} aria-hidden="true" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
 
@@ -672,12 +682,22 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
               </div>
             </div>
 
-            {/* Weather / Time pill (desktop) */}
-            <div className="hidden md:flex items-center gap-2 text-[11px] font-medium bg-[#14141c] border border-white/[0.08] px-3 py-1 rounded-full text-neutral-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{weatherInfo}</span>
-              <span className="text-neutral-600">|</span>
-              <span className="text-white font-semibold">NPT: {nepalTimeStr}</span>
+            <div className="flex items-center gap-2">
+              {/* Weather / Time pill (desktop) */}
+              <div className="hidden md:flex items-center gap-2 text-[11px] font-medium bg-[#14141c] border border-white/[0.08] px-3 py-1 rounded-full text-neutral-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{weatherInfo}</span>
+                <span className="text-neutral-600">|</span>
+                <span className="text-white font-semibold">NPT: {nepalTimeStr}</span>
+              </div>
+              <button
+                type="button"
+                onClick={logout}
+                className="flex flex-shrink-0 items-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-400 transition-colors hover:bg-rose-500/20 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              >
+                <LogOut size={15} aria-hidden="true" />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
 

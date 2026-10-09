@@ -183,6 +183,9 @@ export default function LoginPage() {
       ProfileFetchFailed: 'Google sign-in could not load your profile. Please try again.',
       SignupFailed: 'Could not create your account. Please try again.',
       CallbackException: 'Google sign-in hit an unexpected error. Please try again.',
+      GoogleNotConfigured: 'Google sign-in is not configured. Please contact support.',
+      GoogleCallbackMismatch: 'Google sign-in callback does not match this site. Please contact support.',
+      BackendSessionRequired: 'Google sign-in did not return a valid login session. Please try again.',
       InvalidOAuthState: 'Google sign-in verification failed. Please try again.',
     };
     setServerError(messages[oauthError] || 'Google sign-in failed. Please try again.');
@@ -355,12 +358,6 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    // Backend-dependent action intercepted while Google authentication backend is in development
-    if (!BACKEND_READY) {
-      triggerBackendWarning(role || 'USER');
-      return;
-    }
-
     setIsSubmitting(true);
     setServerError('');
     try {

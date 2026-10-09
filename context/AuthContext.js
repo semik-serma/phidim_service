@@ -194,39 +194,11 @@ export function AuthProvider({ children }) {
     console.log("👤 Registered realtime user:", user.id);
   }, [user]);
 
-  const loginWithGoogle = useCallback(async (targetRole = "USER") => {
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
-    try {
-      if (typeof window !== "undefined") {
-        const origin = window.location.origin;
-        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
-        const redirectUri =
-          process.env.NEXT_PUBLIC_GOOGLE_CALLBACK_URL ||
-          (origin.includes("localhost") || origin.includes("127.0.0.1")
-            ? "http://localhost:3000/api/auth/google/callback"
-            : `${origin}/api/auth/google/callback`);
-
-        const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        const statePayload = { role: targetRole, redirectUri, nonce, origin };
-        const state = btoa(JSON.stringify(statePayload));
-
-        const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-        googleAuthUrl.searchParams.append("client_id", clientId);
-        googleAuthUrl.searchParams.append("redirect_uri", redirectUri);
-        googleAuthUrl.searchParams.append("response_type", "code");
-        googleAuthUrl.searchParams.append("scope", "openid email profile");
-        googleAuthUrl.searchParams.append("prompt", "select_account");
-        googleAuthUrl.searchParams.append("state", state);
-
-        window.location.href = googleAuthUrl.toString();
-      }
-    } catch (err) {
-      console.error("Google login redirect error:", err);
-      throw err;
-    }
+  const loginWithGoogle = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const url = new URL("/api/auth/google/start", window.location.origin);
+    if (new URLSearchParams(window.location.search).get("redirect") === "/") url.searchParams.set("redirect", "/");
+    window.location.assign(url.toString());
   }, []);
 
   const login = useCallback(

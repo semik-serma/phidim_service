@@ -38,7 +38,7 @@ export async function middleware(request) {
   if (pathname.startsWith("/api/") || pathname.startsWith("/_next/")) {
     return NextResponse.next();
   }
-  const isAuthPage = ["/login", "/register", "/forgot-password", "/reset-password"].includes(pathname);
+  const isAuthPage = ["/system", "/login", "/register", "/forgot-password", "/reset-password"].includes(pathname);
   const canonical = DASHBOARD_ALIASES[pathname] || pathname;
   const rule = findRoleRule(PAGE_ROUTE_RULES, canonical);
   if (!isAuthPage && (isPublic(pathname) || (!rule && canonical !== "/dashboard"))) {

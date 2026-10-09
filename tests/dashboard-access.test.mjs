@@ -151,3 +151,20 @@ test("client guard renders no dashboard during loading, missing sessions, or wro
     assert.equal(html.includes("PRIVATE_DASHBOARD"), expected, `${userRole} -> ${allowedRole}, loading=${loading}`);
   }
 });
+
+test("roleless Google sessions remain valid on later dashboard and session requests", async () => {
+  const accessToken = token("c", {role: undefined});
+  globalThis.fetch = async (url, options) => {
+    if (url.endsWith("/token/verify/")) return new Response("{}");
+    assert.ok(url.endsWith("/api/auth/user/"));
+    assert.equal(options.headers.Authorization, "Bearer " + accessToken);
+    return new Response(JSON.stringify({pk: 8, role: "c", email: "new@example.com"}));
+  };
+  assert.equal((await middleware(request("/user/dashboard", accessToken))).status, 200);
+  const denied = await middleware(request("/admin/dashboard", accessToken));
+  assert.equal(new URL(denied.headers.get("location")).pathname, "/user/dashboard");
+  const session = await getSessionUser({request: new Request("http://localhost:3000", {headers: {cookie: "phidim_access_token=" + accessToken}})});
+  assert.equal(session.user.id, "8");
+  assert.equal(session.user.role, "USER");
+  assert.equal(session.user.email, "new@example.com");
+});
