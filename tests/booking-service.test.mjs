@@ -1,8 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchTechnicians, buildBookingPayload, nepalDateTimeToUTC, postBooking, normalizeCreatedBooking } from '../services/bookingService.js';
+import { fetchServiceAreas, fetchServicesByArea, fetchTechnicians, buildBookingPayload, nepalDateTimeToUTC, postBooking, normalizeCreatedBooking } from '../services/bookingService.js';
 
 const input = { technicianId: 6, latitude: '27.16', longitude: '87.92', date: '2026-09-10', time: '16:15', notes: ' Camera has no video. ' };
+test('loads service area choices from the configured API and handles failures', async () => {
+  const areas = [{id: 1, name: 'Phidim'}, {id: 2, name: 'dharan'}, {id: 3, name: 'birathnagar'}];
+  assert.deepEqual(await fetchServiceAreas({token: 'access-token', baseUrl: 'http://localhost:8000/', fetchImpl: async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/service-areas/');
+    assert.equal(options.headers.Authorization, 'Bearer access-token');
+    return Response.json(areas);
+  }}), areas);
+  await assert.rejects(fetchServiceAreas({fetchImpl: async () => new Response('Offline', {status: 503})}), /Unable to load service areas/);
+  await assert.rejects(fetchServiceAreas({fetchImpl: async () => Response.json([{name: 'Missing ID'}])}), /Invalid service area/);
+  assert.equal(buildBookingPayload({...input, serviceAreaId: 2}).service_area, 2);
+  assert.throws(() => buildBookingPayload({...input, serviceAreaId: '2'}), /valid service area/);
+});
 const saved = { id: 18, status: 'p', latitude: '27.1600000', longitude: '87.9200000', date: '2026-09-10T10:30:00Z', created_at: '2026-10-09T07:25:42.189935Z', updated_at: '2026-10-09T07:25:42.189945Z', problem_details: 'Camera has no video.', technician: 6, customer: 11 };
 
 test('technicians use profile IDs, real details, and anonymous GET', async () => {
@@ -67,4 +79,19 @@ test('missing token, validation errors, expired sessions, and invalid success ne
   await assert.rejects(postBooking(input, {token: 't', fetchImpl: async () => Response.json({detail: 'Expired'}, {status: 401})}), /session expired/);
   await assert.rejects(postBooking(input, {token: 't', fetchImpl: async () => Response.json({})}), /invalid booking/);
   await assert.rejects(postBooking(input, {token: 't', fetchImpl: async () => {throw new Error('Offline');}}), /Offline/);
+});
+
+test('loads services for the selected area with cancellation and validates responses', async () => {
+  const rows = [{id: 25, name: 'House Wiring', description: 'Residential wiring', image: null, category: 15}];
+  const controller = new AbortController();
+  assert.deepEqual(await fetchServicesByArea('1', {token: 'access-token', baseUrl: 'http://localhost:8000/', signal: controller.signal, fetchImpl: async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/services/?service-area=1');
+    assert.equal(options.signal, controller.signal);
+    assert.equal(options.headers.Authorization, 'Bearer access-token');
+    return Response.json(rows);
+  }}), rows);
+  assert.deepEqual(await fetchServicesByArea(2, {fetchImpl: async () => Response.json({results: []})}), []);
+  await assert.rejects(fetchServicesByArea('', {fetchImpl: () => assert.fail('Invalid area must not fetch')}), /valid service area/);
+  await assert.rejects(fetchServicesByArea(1, {fetchImpl: async () => new Response('Offline', {status: 503})}), /Unable to load services/);
+  await assert.rejects(fetchServicesByArea(1, {fetchImpl: async () => Response.json([{name: 'Missing ID'}])}), /Invalid services response/);
 });

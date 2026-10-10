@@ -23,13 +23,24 @@ for (const [file, exported, openLabel] of cases) {
   const compiled = await transform(source, {filename: file.replace('.js','.jsx'), jsc: {parser: {syntax: 'ecmascript', jsx: true}, transform: {react: {runtime: 'classic'}}}, module: {type: 'commonjs'}});
   test(file + ' awaits creation and leaves failed forms open with inputs intact', async () => {
     const hooks = []; let cursor = 0, resolve, submitted, success = 0;
-    const form = {disabled: false, time: '16:15', submit: data => {submitted = data; return new Promise(done => {resolve = done;});}};
+    const form = {disabled: false, time: '16:15', serviceAreas: [{id: 1, name: 'Phidim'}, {id: 2, name: 'dharan'}, {id: 3, name: 'birathnagar'}], serviceAreaId: '', setServiceAreaId: value => {form.serviceAreaId = value;}, submit: data => {submitted = data; return new Promise(done => {resolve = done;});}};
+    const serviceRequests = [];
+    const pendingEffects = [];
     const module = {exports: {}};
-    vm.runInNewContext(compiled.code, {module, exports: module.exports, React, setTimeout: () => 0, require(name) {
+    vm.runInNewContext(compiled.code, {module, exports: module.exports, React, AbortController, setTimeout: () => 0, require(name) {
       if (name === 'react') return {...React,
         useState(initial) {const i=cursor++; if (!(i in hooks)) hooks[i] = typeof initial === 'function' ? initial() : initial; return [hooks[i], v => {hooks[i] = typeof v === 'function' ? v(hooks[i]) : v;}];},
-        useEffect() {}, useMemo: fn => fn(), useRef: value => ({current: value}),
+        useEffect(effect, deps) {
+          if (!String(effect).includes('fetchServicesByArea')) return;
+          const i = cursor++;
+          if (!hooks[i] || deps.some((dep, index) => dep !== hooks[i].deps[index])) {
+            hooks[i]?.cleanup?.();
+            hooks[i] = {deps};
+            pendingEffects.push(() => {hooks[i].cleanup = effect();});
+          }
+        }, useMemo: fn => fn(), useRef: value => ({current: value}),
       };
+      if (name === '@/services/bookingService') return {fetchServicesByArea: (areaId, options) => new Promise(resolve => {serviceRequests.push({areaId, signal: options.signal, resolve});})};
       if (name === '@/components/BookingFields') return {BookingFields: 'booking-fields', useBookingForm: () => form};
       if (name === '@/context/AuthContext') return {useAuth: () => ({isAuthenticated: true, user: {name: 'Customer', email: 'customer@example.test', phone: '9800000000'}})};
       if (name === '@/data/services') return services;
@@ -42,10 +53,34 @@ for (const [file, exported, openLabel] of cases) {
       return new Proxy({}, {get: () => () => null});
     }});
     const props = {isOpen: true, service: services.SERVICES[0], onClose: () => {}, onBookingSuccess: () => success++, onConfirmBooking: () => success++};
-    function render() {cursor = 0; return module.exports[exported](props);}
+    function render() {cursor = 0; const tree = module.exports[exported](props); pendingEffects.splice(0).forEach(effect => effect()); return tree;}
     let tree = render();
     if (openLabel) {nodes(tree).find(n => n.type === 'button' && text(n).includes(openLabel)).props.onClick(); tree = render();}
     assert.ok(nodes(tree).some(n => n.type === 'booking-fields'));
+    if (exported === 'default') {
+      const areaSelect = nodes(tree).find(n => n.props.id === 'booking-service-area');
+      assert.ok(areaSelect.props.required);
+      assert.match(text(areaSelect), /Phidim dharan birathnagar/);
+      areaSelect.props.onChange({target: {value: '2'}});
+      tree = render();
+      assert.equal(nodes(tree).find(n => n.props.id === 'booking-service-area').props.value, '2');
+      assert.equal(serviceRequests.at(-1).areaId, '2');
+      assert.equal(nodes(tree).find(n => n.props.id === 'booking-service').props.disabled, true);
+      // Changing area cancels the previous request; its late result must be ignored.
+      nodes(tree).find(n => n.props.id === 'booking-service-area').props.onChange({target: {value: '1'}});
+      tree = render();
+      assert.equal(serviceRequests[0].signal.aborted, true);
+      serviceRequests[0].resolve([{id: 99, name: 'Wrong area service', category: 15}]);
+      serviceRequests[1].resolve([{id: 25, name: 'House Wiring', category: 15}]);
+      await new Promise(done => setImmediate(done));
+      tree = render();
+      const serviceSelect = nodes(tree).find(n => n.props.id === 'booking-service');
+      assert.equal(serviceSelect.props.value, '');
+      assert.match(text(serviceSelect), /House Wiring/);
+      assert.doesNotMatch(text(serviceSelect), /Wrong area service/);
+      serviceSelect.props.onChange({target: {value: '25'}});
+      tree = render();
+    }
     const details = nodes(tree).find(n => n.type === 'textarea' || (n.type === 'input' && n.props['aria-label'] === 'Problem details'));
     details.props.onChange({target: {value: 'Camera has no video'}});
     tree = render();

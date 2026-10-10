@@ -61,6 +61,7 @@ import {
   subscribeChatStore,
   playMessageChime
 } from "@/lib/chatStore";
+import { fetchServicesByArea } from "@/services/bookingService";
 import { fetchWeather } from "@/services/weatherService";
 import { SERVICES, SERVICE_CATEGORIES } from "@/data/services";
 import { AccountSettings } from "@/components/AccountSettings";
@@ -112,7 +113,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
   // Modals state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-  const bookingForm = useBookingForm(isBookingModalOpen);
+  const bookingForm = useBookingForm(isBookingModalOpen, { requireServiceArea: true });
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [selectedBookingForTracking, setSelectedBookingForTracking] = useState(null);
   const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
@@ -124,7 +125,31 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   const [toastMessage, setToastMessage] = useState(null);
 
   // Booking Form fields
-  const [bookServiceId, setBookServiceId] = useState(SERVICES[0]?.id || "srv-cctv-install");
+  const [bookServiceId, setBookServiceId] = useState("");
+  const [areaServices, setAreaServices] = useState({ areaId: "", rows: [], loading: false, error: "" });
+  const [servicesRetry, setServicesRetry] = useState(0);
+  const servicesMatchArea = areaServices.areaId === bookingForm.serviceAreaId;
+  const availableServices = servicesMatchArea ? areaServices.rows : [];
+  const servicesLoading = !!bookingForm.serviceAreaId && (!servicesMatchArea || areaServices.loading);
+  const servicesError = servicesMatchArea ? areaServices.error : "";
+  const selectedService = availableServices.find(service => String(service.id) === bookServiceId);
+
+  useEffect(() => {
+    setBookServiceId("");
+    if (!isBookingModalOpen || !bookingForm.serviceAreaId) {
+      setAreaServices({ areaId: "", rows: [], loading: false, error: "" });
+      return;
+    }
+    const controller = new AbortController();
+    const areaId = bookingForm.serviceAreaId;
+    setAreaServices({ areaId, rows: [], loading: true, error: "" });
+    fetchServicesByArea(areaId, { signal: controller.signal }).then(rows => {
+      if (!controller.signal.aborted) setAreaServices({ areaId, rows, loading: false, error: "" });
+    }).catch(error => {
+      if (!controller.signal.aborted) setAreaServices({ areaId, rows: [], loading: false, error: error.message || "Unable to load services." });
+    });
+    return () => controller.abort();
+  }, [isBookingModalOpen, bookingForm.serviceAreaId, servicesRetry]);
   const [bookAddress, setBookAddress] = useState("Phidim-1, Main Bazar, Panchthar");
   const [bookDate, setBookDate] = useState(new Date().toISOString().split("T")[0]);
   const [bookIsEmergency, setBookIsEmergency] = useState(false);
@@ -239,18 +264,22 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   // Handle Book Service Submission
   const handleConfirmBooking = async (e) => {
     e.preventDefault();
-    const serviceObj = SERVICES.find((s) => s.id === bookServiceId) || SERVICES[0];
+    if (servicesLoading || servicesError || !selectedService) {
+      showToast("Select an available service before booking.");
+      return;
+    }
+    const serviceObj = selectedService;
 
     const newBooking = await bookingForm.submit({
       serviceName: serviceObj.name,
-      category: serviceObj.category,
+      category: String(serviceObj.category ?? ""),
       customerName: currentUser.displayName || currentUser.name || "Semik Serma",
       customerEmail: currentUser.email,
       customerPhone: currentUser.phone || "+977 9862772400",
       address: bookAddress,
       date: bookDate,
-      amount: `Rs. ${serviceObj.basePrice?.toLocaleString() || "1,500"}`,
-      numericAmount: serviceObj.basePrice || 1500,
+      amount: serviceObj.basePrice != null ? `Rs. ${serviceObj.basePrice.toLocaleString()}` : "",
+      numericAmount: serviceObj.basePrice ?? 0,
       paymentStatus: "Cash / Fonepay on Completion",
       isEmergency: bookIsEmergency,
       notes: bookNotes,
@@ -940,7 +969,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                       {/* Dark Pill Action Button (Replicating Withdraw button) */}
                       <button
                         onClick={() => {
-                          setBookServiceId(item.id);
+                          setBookServiceId("");
                           setIsBookingModalOpen(true);
                         }}
                         className="px-3 py-1 rounded-xl bg-[#22222c] hover:bg-[#2c2c38] text-white text-[11px] font-semibold border border-white/10 transition-all shadow-xs"
@@ -1184,7 +1213,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
               <button
                 onClick={() => {
-                  setBookServiceId("srv-cctv-install");
+                  setBookServiceId("");
                   setIsBookingModalOpen(true);
                 }}
                 className="w-full py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all flex items-center justify-center shadow-sm active:scale-95"
@@ -1206,7 +1235,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-lg bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl space-y-4 text-white"
+              className="w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl space-y-4 text-white"
             >
               <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <div className="flex items-center gap-2.5">
@@ -1224,25 +1253,50 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
               </div>
 
               <form onSubmit={handleConfirmBooking} className="space-y-3.5 text-xs">
+
+                <div className="space-y-1">
+                  <label htmlFor="booking-service-area" className="text-[11px] font-semibold text-neutral-300">Service Area *</label>
+                  <select
+                    id="booking-service-area"
+                    required
+                    value={bookingForm.serviceAreaId}
+                    onChange={(e) => bookingForm.setServiceAreaId(e.target.value)}
+                    disabled={bookingForm.areasLoading || !!bookingForm.areasError || bookingForm.submitting}
+                    className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40 disabled:opacity-50"
+                  >
+                    <option value="">{bookingForm.areasLoading ? "Loading service areas..." : "Select a service area"}</option>
+                    {bookingForm.serviceAreas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
+                  </select>
+                  {bookingForm.areasError && <p role="alert" className="text-red-400">{bookingForm.areasError}</p>}
+                  {!bookingForm.areasLoading && !bookingForm.areasError && !bookingForm.serviceAreas.length && <p role="status">No service areas are available.</p>}
+                  {(bookingForm.areasError || (!bookingForm.areasLoading && !bookingForm.serviceAreas.length)) && <button type="button" onClick={bookingForm.retry} className="font-bold underline">Retry service areas</button>}
+                </div>
                 {/* Service Picker */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-300">Select Service Required</label>
+                  <label htmlFor="booking-service" className="text-[11px] font-semibold text-neutral-300">Select Service Required *</label>
                   <select
+                    id="booking-service"
+                    required
+                    disabled={!bookingForm.serviceAreaId || servicesLoading || !!servicesError || !availableServices.length || bookingForm.submitting}
                     value={bookServiceId}
                     onChange={(e) => setBookServiceId(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
                   >
-                    {SERVICES.map((srv) => (
+                    <option value="">{!bookingForm.serviceAreaId ? "Select a service area first" : servicesLoading ? "Loading services..." : "Select a service"}</option>
+                    {availableServices.map((srv) => (
                       <option key={srv.id} value={srv.id} className="bg-[#14141e] text-white">
-                        {srv.name} — Rs. {srv.basePrice?.toLocaleString()} ({srv.category})
+                        {srv.name}
                       </option>
                     ))}
                   </select>
+                  {servicesError && <p role="alert" className="text-red-400">{servicesError}</p>}
+                  {bookingForm.serviceAreaId && !servicesLoading && !servicesError && !availableServices.length && <p role="status">No services are available in this area.</p>}
+                  {servicesError && <button type="button" onClick={() => setServicesRetry(value => value + 1)} className="font-bold underline">Retry services</button>}
                 </div>
 
-                {/* Customer Address in Phidim */}
+                {/* Customer Address */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-300">Service Location in Phidim</label>
+                  <label className="text-[11px] font-semibold text-neutral-300">Service Address</label>
                   <div className="relative">
                     <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
                     <input
@@ -1304,7 +1358,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={bookingForm.disabled}
+                    disabled={bookingForm.disabled || servicesLoading || !!servicesError || !selectedService}
                     className="w-full py-3 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all shadow-md active:scale-95"
                   >
                     Confirm Doorstep Booking

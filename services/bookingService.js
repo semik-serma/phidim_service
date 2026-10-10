@@ -12,6 +12,36 @@ async function errorMessage(response, fallback) {
   return data ? Object.entries(data).map(([key, value]) => key + ": " + (Array.isArray(value) ? value.join(" ") : String(value))).join("; ") : fallback;
 }
 
+export async function fetchServiceAreas({ token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+  const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/service-areas/", {
+    signal, ...(token ? { headers: { Authorization: "Bearer " + token } } : {}),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, "Unable to load service areas. Please retry."));
+  const data = await response.json();
+  const rows = Array.isArray(data) ? data : data?.results;
+  if (!Array.isArray(rows) || rows.some(row => !Number.isInteger(row?.id) || row.id <= 0 || typeof row.name !== "string" || !row.name.trim())) {
+    throw new Error("Invalid service area response.");
+  }
+  return rows;
+}
+
+export async function fetchServicesByArea(serviceAreaId, { token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+  const areaId = Number(serviceAreaId);
+  if (!Number.isInteger(areaId) || areaId <= 0) throw new Error("Select a valid service area.");
+  const url = new URL(baseUrl.replace(/\/+$/, "") + "/services/");
+  url.searchParams.set("service-area", String(areaId));
+  const response = await fetchImpl(url.href, {
+    signal, ...(token ? { headers: { Authorization: "Bearer " + token } } : {}),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, "Unable to load services. Please retry."));
+  const data = await response.json();
+  const rows = Array.isArray(data) ? data : data?.results;
+  if (!Array.isArray(rows) || rows.some(row => !Number.isInteger(row?.id) || row.id <= 0 || typeof row.name !== "string" || !row.name.trim())) {
+    throw new Error("Invalid services response.");
+  }
+  return rows;
+}
+
 export async function fetchTechnicians({ baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
   let url = new URL(baseUrl.replace(/\/+$/, "") + "/technicians/");
   const origin = url.origin;
@@ -50,6 +80,7 @@ export function nepalDateTimeToUTC(date, time) {
 
 export function buildBookingPayload(data) {
   if (!Number.isInteger(data.technicianId) || data.technicianId <= 0) throw new Error("Select a technician.");
+  if (data.serviceAreaId != null && (!Number.isInteger(data.serviceAreaId) || data.serviceAreaId <= 0)) throw new Error("Select a valid service area.");
   const coordinates = {};
   for (const [key, limit] of [["latitude", 90], ["longitude", 180]]) {
     const raw = String(data[key] ?? "").trim();
@@ -59,7 +90,7 @@ export function buildBookingPayload(data) {
   }
   const details = typeof data.notes === "string" ? data.notes.trim() : "";
   if (!details) throw new Error("Describe the problem for your technician.");
-  return { technician: data.technicianId, ...coordinates, date: nepalDateTimeToUTC(data.date, data.time), problem_details: details };
+  return { technician: data.technicianId, ...(data.serviceAreaId != null ? { service_area: data.serviceAreaId } : {}), ...coordinates, date: nepalDateTimeToUTC(data.date, data.time), problem_details: details };
 }
 
 export async function postBooking(data, { token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
@@ -85,6 +116,8 @@ export function normalizeCreatedBooking(saved, data) {
     status: saved.status === "p" ? "Pending" : saved.status,
     technicianId: saved.technician,
     technician: data.technician,
+    serviceAreaId: saved.service_area ?? data.serviceAreaId,
+    serviceArea: data.serviceArea,
     serviceName: data.serviceName || data.category || "Service booking",
     category: data.category || "",
     customerName: data.customerName || "",

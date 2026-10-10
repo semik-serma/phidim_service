@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchTechnicians } from "@/services/bookingService";
+import { fetchTechnicians, fetchServiceAreas } from "@/services/bookingService";
 import { createBooking } from "@/lib/bookingStore";
 
-export function useBookingForm(active = true) {
+export function useBookingForm(active = true, { requireServiceArea = false } = {}) {
+  const [serviceAreas, setServiceAreas] = useState([]);
+  const [serviceAreaId, setServiceAreaId] = useState("");
+  const [areasLoading, setAreasLoading] = useState(false);
+  const [areasError, setAreasError] = useState("");
   const [technicians, setTechnicians] = useState([]);
   const [technicianId, setTechnicianId] = useState("");
   const [latitude, setLatitude] = useState("");
@@ -18,6 +22,21 @@ export function useBookingForm(active = true) {
   const [locationError, setLocationError] = useState("");
   const [retry, setRetry] = useState(0);
   const inFlight = useRef(false);
+
+  useEffect(() => {
+    if (!active || !requireServiceArea) return;
+    const controller = new AbortController();
+    setAreasLoading(true);
+    setAreasError("");
+    fetchServiceAreas({ signal: controller.signal }).then(rows => {
+      if (controller.signal.aborted) return;
+      setServiceAreas(rows);
+      setServiceAreaId(current => rows.some(row => String(row.id) === current) ? current : "");
+    }).catch(err => {
+      if (!controller.signal.aborted) { setServiceAreas([]); setAreasError(err.message || "Unable to load service areas."); }
+    }).finally(() => { if (!controller.signal.aborted) setAreasLoading(false); });
+    return () => controller.abort();
+  }, [active, requireServiceArea, retry]);
 
   useEffect(() => {
     if (!active) return;
@@ -56,7 +75,9 @@ export function useBookingForm(active = true) {
     try {
       const technician = technicians.find(row => String(row.id) === technicianId);
       if (loading || loadError || !technician) throw new Error("Select an available technician before booking.");
-      return await createBooking({ ...metadata, technician, technicianId: technician.id, latitude, longitude, time });
+      const serviceArea = serviceAreas.find(row => String(row.id) === serviceAreaId);
+      if (requireServiceArea && (areasLoading || areasError || !serviceArea)) throw new Error("Select an available service area before booking.");
+      return await createBooking({ ...metadata, ...(requireServiceArea ? { serviceAreaId: serviceArea.id, serviceArea } : {}), technician, technicianId: technician.id, latitude, longitude, time });
     } catch (err) {
       setError(err.message || "Unable to create booking. Please try again.");
       return null;
@@ -67,9 +88,11 @@ export function useBookingForm(active = true) {
   }
 
   return { technicians, technicianId, setTechnicianId, latitude, setLatitude, longitude, setLongitude,
+    requireServiceArea, serviceAreas, serviceAreaId, setServiceAreaId, areasLoading, areasError,
     time, setTime, loading, loadError, error, submitting, locating, locationError, locate,
     retry: () => setRetry(value => value + 1), submit,
-    disabled: submitting || loading || !!loadError || !technicians.length || !technicianId };
+    disabled: submitting || loading || !!loadError || !technicians.length || !technicianId ||
+      (requireServiceArea && (areasLoading || !!areasError || !serviceAreas.length || !serviceAreaId)) };
 }
 
 const inputClass = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white";

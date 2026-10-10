@@ -9,7 +9,7 @@ const {transform} = require('next/dist/build/swc');
 const source = await readFile(new URL('../components/BookingFields.js', import.meta.url), 'utf8');
 const compiled = await transform(source, {filename: 'BookingFields.jsx', jsc: {parser: {syntax: 'ecmascript', jsx: true}, transform: {react: {runtime: 'classic'}}}, module: {type: 'commonjs'}});
 const tick = () => new Promise(resolve => setImmediate(resolve));
-function harness({load = async () => [{id: 6, userId: 7, name: 'Ram Sita'}], create, gps} = {}) {
+function harness({load = async () => [{id: 6, userId: 7, name: 'Ram Sita'}], loadAreas = async () => [{id: 1, name: 'Phidim'}, {id: 2, name: 'dharan'}], requireServiceArea = false, create, gps} = {}) {
   const hooks = [], effects = []; let cursor = 0;
   const module = {exports: {}};
   vm.runInNewContext(compiled.code, {module, exports: module.exports, React, AbortController, navigator: gps ? {geolocation: gps} : {}, require(name) {
@@ -18,13 +18,39 @@ function harness({load = async () => [{id: 6, userId: 7, name: 'Ram Sita'}], cre
       useRef(initial) {const i = cursor++; return hooks[i] ||= {current: initial};},
       useEffect(callback, deps) {const i = cursor++; const old = hooks[i]; if (!old || deps.some((v,n) => v !== old.deps[n])) effects.push(() => {old?.cleanup?.(); hooks[i] = {deps, cleanup: callback()};});},
     };
-    if (name === '@/services/bookingService') return {fetchTechnicians: load};
+    if (name === '@/services/bookingService') return {fetchTechnicians: load, fetchServiceAreas: loadAreas};
     if (name === '@/lib/bookingStore') return {createBooking: create};
     throw new Error('Unexpected import ' + name);
   }});
-  return {render(active = true) {cursor = 0; const form = module.exports.useBookingForm(active); while(effects.length) effects.shift()(); return form;}, unmount() {hooks.forEach(h => h?.cleanup?.());}};
+  return {render(active = true) {cursor = 0; const form = module.exports.useBookingForm(active, {requireServiceArea}); while(effects.length) effects.shift()(); return form;}, unmount() {hooks.forEach(h => h?.cleanup?.());}};
 }
 const metadata = {date: '2026-09-10', notes: 'No video'};
+test('dashboard requires a loaded service area and submits its numeric ID', async () => {
+  let submitted;
+  const h = harness({requireServiceArea: true, create: async data => {submitted = data; return {id: '18'};}});
+  let f = await fill(h);
+  assert.equal(f.disabled, true);
+  assert.equal(await f.submit(metadata), null);
+  f.setServiceAreaId('2');
+  f = h.render();
+  assert.equal(f.disabled, false);
+  assert.equal((await f.submit(metadata)).id, '18');
+  assert.equal(submitted.serviceAreaId, 2);
+  assert.equal(submitted.serviceArea.name, 'dharan');
+  h.unmount();
+});
+
+test('service area failure blocks booking and retry recovers the list', async () => {
+  let calls = 0;
+  const h = harness({requireServiceArea: true, loadAreas: async () => {if (++calls === 1) throw new Error('Offline'); return [{id: 1, name: 'Phidim'}];}});
+  let f = await fill(h);
+  assert.match(f.areasError, /Offline/);
+  assert.equal(f.disabled, true);
+  f.retry(); h.render(); await tick(); f = h.render();
+  assert.equal(f.areasError, '');
+  assert.equal(f.serviceAreas[0].name, 'Phidim');
+  h.unmount();
+});
 async function fill(h) {
   h.render(); await tick(); let f = h.render();
   f.setTechnicianId('6'); f.setLatitude('27.16'); f.setLongitude('87.92'); f.setTime('16:15');
