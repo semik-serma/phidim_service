@@ -16,7 +16,6 @@ const cases = [
   ['components/ServiceBookingModal.js', 'ServiceBookingModal', null],
   ['components/user-dashboard/QuickBookingCard.js', 'QuickBookingCard', null],
   ['components/user-dashboard/MyBookingsList.js', 'MyBookingsList', '+ Create New Booking'],
-  ['components/user-dashboard/UserDashboardNewUI.js', 'default', 'Book New Service'],
 ];
 for (const [file, exported, openLabel] of cases) {
   const source = await readFile(new URL('../' + file, import.meta.url), 'utf8');
@@ -57,30 +56,6 @@ for (const [file, exported, openLabel] of cases) {
     let tree = render();
     if (openLabel) {nodes(tree).find(n => n.type === 'button' && text(n).includes(openLabel)).props.onClick(); tree = render();}
     assert.ok(nodes(tree).some(n => n.type === 'booking-fields'));
-    if (exported === 'default') {
-      const areaSelect = nodes(tree).find(n => n.props.id === 'booking-service-area');
-      assert.ok(areaSelect.props.required);
-      assert.match(text(areaSelect), /Phidim dharan birathnagar/);
-      areaSelect.props.onChange({target: {value: '2'}});
-      tree = render();
-      assert.equal(nodes(tree).find(n => n.props.id === 'booking-service-area').props.value, '2');
-      assert.equal(serviceRequests.at(-1).areaId, '2');
-      assert.equal(nodes(tree).find(n => n.props.id === 'booking-service').props.disabled, true);
-      // Changing area cancels the previous request; its late result must be ignored.
-      nodes(tree).find(n => n.props.id === 'booking-service-area').props.onChange({target: {value: '1'}});
-      tree = render();
-      assert.equal(serviceRequests[0].signal.aborted, true);
-      serviceRequests[0].resolve([{id: 99, name: 'Wrong area service', category: 15}]);
-      serviceRequests[1].resolve([{id: 25, name: 'House Wiring', category: 15}]);
-      await new Promise(done => setImmediate(done));
-      tree = render();
-      const serviceSelect = nodes(tree).find(n => n.props.id === 'booking-service');
-      assert.equal(serviceSelect.props.value, '');
-      assert.match(text(serviceSelect), /House Wiring/);
-      assert.doesNotMatch(text(serviceSelect), /Wrong area service/);
-      serviceSelect.props.onChange({target: {value: '25'}});
-      tree = render();
-    }
     const details = nodes(tree).find(n => n.type === 'textarea' || (n.type === 'input' && n.props['aria-label'] === 'Problem details'));
     details.props.onChange({target: {value: 'Camera has no video'}});
     tree = render();

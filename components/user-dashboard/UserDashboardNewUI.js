@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Briefcase,
@@ -47,7 +48,6 @@ import {
   DollarSign
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { BookingFields, useBookingForm } from "@/components/BookingFields";
 import { useAuth } from "@/context/AuthContext";
 import { useCall } from "@/components/calls/CallProvider";
 import {
@@ -61,7 +61,6 @@ import {
   subscribeChatStore,
   playMessageChime
 } from "@/lib/chatStore";
-import { fetchServicesByArea } from "@/services/bookingService";
 import { fetchWeather } from "@/services/weatherService";
 import { SERVICES, SERVICE_CATEGORIES } from "@/data/services";
 import { AccountSettings } from "@/components/AccountSettings";
@@ -80,6 +79,10 @@ const CATEGORY_ICON_MAP = {
 
 export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   const { user, logout } = useAuth();
+  const router = useRouter();
+  const openTechnicianSearch = (notes = "") => router.push(
+    "/user/book-service" + (notes ? "?notes=" + encodeURIComponent(notes) : "")
+  );
   const { startCall } = useCall() || {};
 
   // Active User representation
@@ -112,8 +115,6 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   const [serviceCategoryTab, setServiceCategoryTab] = useState("All"); // "All" | "CCTV" | "AC" | "Fiber"
 
   // Modals state
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-  const bookingForm = useBookingForm(isBookingModalOpen, { requireServiceArea: true });
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [selectedBookingForTracking, setSelectedBookingForTracking] = useState(null);
   const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
@@ -123,37 +124,6 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-
-  // Booking Form fields
-  const [bookServiceId, setBookServiceId] = useState("");
-  const [areaServices, setAreaServices] = useState({ areaId: "", rows: [], loading: false, error: "" });
-  const [servicesRetry, setServicesRetry] = useState(0);
-  const servicesMatchArea = areaServices.areaId === bookingForm.serviceAreaId;
-  const availableServices = servicesMatchArea ? areaServices.rows : [];
-  const servicesLoading = !!bookingForm.serviceAreaId && (!servicesMatchArea || areaServices.loading);
-  const servicesError = servicesMatchArea ? areaServices.error : "";
-  const selectedService = availableServices.find(service => String(service.id) === bookServiceId);
-
-  useEffect(() => {
-    setBookServiceId("");
-    if (!isBookingModalOpen || !bookingForm.serviceAreaId) {
-      setAreaServices({ areaId: "", rows: [], loading: false, error: "" });
-      return;
-    }
-    const controller = new AbortController();
-    const areaId = bookingForm.serviceAreaId;
-    setAreaServices({ areaId, rows: [], loading: true, error: "" });
-    fetchServicesByArea(areaId, { signal: controller.signal }).then(rows => {
-      if (!controller.signal.aborted) setAreaServices({ areaId, rows, loading: false, error: "" });
-    }).catch(error => {
-      if (!controller.signal.aborted) setAreaServices({ areaId, rows: [], loading: false, error: error.message || "Unable to load services." });
-    });
-    return () => controller.abort();
-  }, [isBookingModalOpen, bookingForm.serviceAreaId, servicesRetry]);
-  const [bookAddress, setBookAddress] = useState("Phidim-1, Main Bazar, Panchthar");
-  const [bookDate, setBookDate] = useState(new Date().toISOString().split("T")[0]);
-  const [bookIsEmergency, setBookIsEmergency] = useState(false);
-  const [bookNotes, setBookNotes] = useState("");
 
   // Chat message input
   const [chatInputText, setChatInputText] = useState("");
@@ -260,36 +230,6 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
       return true;
     });
   }, [bookings, tableFilter, serviceCategoryTab, searchQuery]);
-
-  // Handle Book Service Submission
-  const handleConfirmBooking = async (e) => {
-    e.preventDefault();
-    if (servicesLoading || servicesError || !selectedService) {
-      showToast("Select an available service before booking.");
-      return;
-    }
-    const serviceObj = selectedService;
-
-    const newBooking = await bookingForm.submit({
-      serviceName: serviceObj.name,
-      category: String(serviceObj.category ?? ""),
-      customerName: currentUser.displayName || currentUser.name || "Semik Serma",
-      customerEmail: currentUser.email,
-      customerPhone: currentUser.phone || "+977 9862772400",
-      address: bookAddress,
-      date: bookDate,
-      amount: serviceObj.basePrice != null ? `Rs. ${serviceObj.basePrice.toLocaleString()}` : "",
-      numericAmount: serviceObj.basePrice ?? 0,
-      paymentStatus: "Cash / Fonepay on Completion",
-      isEmergency: bookIsEmergency,
-      notes: bookNotes,
-    });
-
-    if (!newBooking) return;
-    setIsBookingModalOpen(false);
-    showToast(`Booking #${newBooking.id} created. Status: ${newBooking.status}.`);
-    setBookNotes("");
-  };
 
   // Open Live Tracking
   const handleOpenTracking = (booking) => {
@@ -580,7 +520,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
             <button
               onClick={() => {
-                setIsBookingModalOpen(true);
+                openTechnicianSearch();
                 setMobileSidebarOpen(false);
               }}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/[0.04] transition-all"
@@ -799,7 +739,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
               {/* White Primary CTA Button: Book Service (Replicating Deposit button) */}
               <button
-                onClick={() => setIsBookingModalOpen(true)}
+                onClick={() => openTechnicianSearch()}
                 className="bg-white text-black font-bold text-xs px-5 py-2.5 rounded-full hover:bg-neutral-200 active:scale-95 transition-all shadow-md flex items-center gap-1.5 flex-shrink-0"
               >
                 <span>Book Service</span>
@@ -838,7 +778,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
             {/* White Action Pill Button */}
             <button
-              onClick={() => setIsBookingModalOpen(true)}
+              onClick={() => openTechnicianSearch()}
               className="w-full bg-white text-black font-bold text-xs py-2.5 rounded-full hover:bg-neutral-200 active:scale-[0.98] transition-all shadow-sm flex items-center justify-center"
             >
               Book a Technician
@@ -968,10 +908,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
 
                       {/* Dark Pill Action Button (Replicating Withdraw button) */}
                       <button
-                        onClick={() => {
-                          setBookServiceId("");
-                          setIsBookingModalOpen(true);
-                        }}
+                        onClick={() => openTechnicianSearch()}
                         className="px-3 py-1 rounded-xl bg-[#22222c] hover:bg-[#2c2c38] text-white text-[11px] font-semibold border border-white/10 transition-all shadow-xs"
                       >
                         Book
@@ -1212,10 +1149,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
               </button>
 
               <button
-                onClick={() => {
-                  setBookServiceId("");
-                  setIsBookingModalOpen(true);
-                }}
+                onClick={() => openTechnicianSearch()}
                 className="w-full py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all flex items-center justify-center shadow-sm active:scale-95"
               >
                 Instant Book
@@ -1224,151 +1158,6 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
           </div>
         </div>
       </main>
-
-      {/* ========================================================================= */}
-      {/* MODAL 1: NEW SERVICE BOOKING MODAL                                        */}
-      {/* ========================================================================= */}
-      <AnimatePresence>
-        {isBookingModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-[#14141e] border border-white/15 rounded-3xl p-6 shadow-2xl space-y-4 text-white"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
-                    <CalendarPlus size={18} />
-                  </div>
-                  <h3 className="text-base font-bold text-white">Book Doorstep Technician</h3>
-                </div>
-                <button
-                  onClick={() => setIsBookingModalOpen(false)}
-                  className="p-1 rounded-xl text-neutral-400 hover:text-white"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleConfirmBooking} className="space-y-3.5 text-xs">
-
-                <div className="space-y-1">
-                  <label htmlFor="booking-service-area" className="text-[11px] font-semibold text-neutral-300">Service Area *</label>
-                  <select
-                    id="booking-service-area"
-                    required
-                    value={bookingForm.serviceAreaId}
-                    onChange={(e) => bookingForm.setServiceAreaId(e.target.value)}
-                    disabled={bookingForm.areasLoading || !!bookingForm.areasError || bookingForm.submitting}
-                    className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40 disabled:opacity-50"
-                  >
-                    <option value="">{bookingForm.areasLoading ? "Loading service areas..." : "Select a service area"}</option>
-                    {bookingForm.serviceAreas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
-                  </select>
-                  {bookingForm.areasError && <p role="alert" className="text-red-400">{bookingForm.areasError}</p>}
-                  {!bookingForm.areasLoading && !bookingForm.areasError && !bookingForm.serviceAreas.length && <p role="status">No service areas are available.</p>}
-                  {(bookingForm.areasError || (!bookingForm.areasLoading && !bookingForm.serviceAreas.length)) && <button type="button" onClick={bookingForm.retry} className="font-bold underline">Retry service areas</button>}
-                </div>
-                {/* Service Picker */}
-                <div className="space-y-1">
-                  <label htmlFor="booking-service" className="text-[11px] font-semibold text-neutral-300">Select Service Required *</label>
-                  <select
-                    id="booking-service"
-                    required
-                    disabled={!bookingForm.serviceAreaId || servicesLoading || !!servicesError || !availableServices.length || bookingForm.submitting}
-                    value={bookServiceId}
-                    onChange={(e) => setBookServiceId(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
-                  >
-                    <option value="">{!bookingForm.serviceAreaId ? "Select a service area first" : servicesLoading ? "Loading services..." : "Select a service"}</option>
-                    {availableServices.map((srv) => (
-                      <option key={srv.id} value={srv.id} className="bg-[#14141e] text-white">
-                        {srv.name}
-                      </option>
-                    ))}
-                  </select>
-                  {servicesError && <p role="alert" className="text-red-400">{servicesError}</p>}
-                  {bookingForm.serviceAreaId && !servicesLoading && !servicesError && !availableServices.length && <p role="status">No services are available in this area.</p>}
-                  {servicesError && <button type="button" onClick={() => setServicesRetry(value => value + 1)} className="font-bold underline">Retry services</button>}
-                </div>
-
-                {/* Customer Address */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-300">Service Address</label>
-                  <div className="relative">
-                    <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    <input
-                      type="text"
-                      required
-                      value={bookAddress}
-                      onChange={(e) => setBookAddress(e.target.value)}
-                      placeholder="e.g. Phidim-1, Main Bazar, near Clock Tower"
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
-                    />
-                  </div>
-                </div>
-
-                {/* Date & Time Slot */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-neutral-300">Preferred Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={bookDate}
-                      onChange={(e) => setBookDate(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
-                    />
-                  </div>
-
-                </div>
-
-                <BookingFields form={bookingForm} />
-
-                {/* Problem Description */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-neutral-300">Problem details *</label>
-                  <textarea
-                    rows={2}
-                    required
-                    value={bookNotes}
-                    onChange={(e) => setBookNotes(e.target.value)}
-                    placeholder="Briefly describe what needs repair..."
-                    className="w-full p-2.5 rounded-xl bg-[#1c1c28] border border-white/10 text-white outline-none focus:border-white/40"
-                  />
-                </div>
-
-                {/* Emergency Toggle */}
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="emergency-check"
-                    checked={bookIsEmergency}
-                    onChange={(e) => setBookIsEmergency(e.target.checked)}
-                    className="w-4 h-4 rounded accent-rose-500 cursor-pointer"
-                  />
-                  <label htmlFor="emergency-check" className="text-xs text-neutral-300 cursor-pointer">
-                    Urgent service request
-                  </label>
-                </div>
-
-                {/* Confirm Button */}
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={bookingForm.disabled || servicesLoading || !!servicesError || !selectedService}
-                    className="w-full py-3 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all shadow-md active:scale-95"
-                  >
-                    Confirm Doorstep Booking
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* ========================================================================= */}
       {/* MODAL 2: LIVE TECHNICIAN TRACKER MODAL                                    */}
@@ -1588,8 +1377,7 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                       key={idx}
                       onClick={() => {
                         setIsAiModalOpen(false);
-                        setBookNotes(preset);
-                        setIsBookingModalOpen(true);
+                        openTechnicianSearch(preset);
                       }}
                       className="w-full text-left p-2 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/5 text-[11px] text-neutral-200 transition-colors"
                     >
@@ -1603,11 +1391,11 @@ export default function UserDashboardNewUI({ initialTab = "dashboard" }) {
                 <button
                   onClick={() => {
                     setIsAiModalOpen(false);
-                    setIsBookingModalOpen(true);
+                    openTechnicianSearch();
                   }}
                   className="w-full py-2.5 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-all"
                 >
-                  Open Booking Form
+                  Find a Technician
                 </button>
               </div>
             </motion.div>
