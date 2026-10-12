@@ -11,9 +11,9 @@ function normalizeTechnician(row, baseUrl) {
     if (["http:", "https:"].includes(url.protocol)) avatar = url.href;
   }
   return {
-    id: profile.id,
+    id: row.id,
     userId: profile.user,
-    name: [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || row.email || "Technician #" + profile.id,
+    name: [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || row.email || "Technician #" + row.id,
     email: row.email || "",
     phone: profile.phone_number || row.phone_number || "",
     address: profile.address || row.address || "",
@@ -57,7 +57,7 @@ export async function searchTechnicians(
     const rows = Array.isArray(data) ? data : data?.results;
     if (!Array.isArray(rows)) throw new Error("Invalid technician response.");
     for (const row of rows) {
-      if (!Number.isSafeInteger(row?.profile?.id) || row.profile.id <= 0) continue;
+      if (!Number.isSafeInteger(row?.id) || row.id <= 0 || !row.profile) continue;
       const technician = normalizeTechnician(row, base);
       technicians.set(technician.id, technician);
     }

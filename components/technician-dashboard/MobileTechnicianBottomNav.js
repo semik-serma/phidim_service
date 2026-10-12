@@ -1,20 +1,11 @@
 "use client";
 
-import {
-  LayoutDashboard,
-  Sparkles,
-  Briefcase,
-  Wallet,
-  User,
-} from "lucide-react";
+import { Briefcase, LogOut } from "lucide-react";
 
-export function MobileTechnicianBottomNav({ activeTab, setActiveTab }) {
+export function MobileTechnicianBottomNav({ activeTab, onLogout }) {
   const items = [
-    { id: "dashboard", name: "Home", icon: LayoutDashboard },
-    { id: "new-jobs", name: "New Jobs", icon: Sparkles, badge: "3" },
-    { id: "my-jobs", name: "Active Job", icon: Briefcase },
-    { id: "wallet", name: "Wallet", icon: Wallet },
-    { id: "documents", name: "Profile", icon: User },
+    { id: "my-jobs", name: "My Bookings", icon: Briefcase },
+    { id: "logout", name: "Logout", icon: LogOut },
   ];
 
   return (
@@ -27,9 +18,11 @@ export function MobileTechnicianBottomNav({ activeTab, setActiveTab }) {
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => { if (item.id === "logout") onLogout(); }}
               className={`relative flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition-all ${
-                isActive
+                item.id === "logout"
+                  ? "text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  : isActive
                   ? "text-emerald-600 dark:text-emerald-400 font-extrabold"
                   : "text-slate-400 hover:text-slate-600"
               }`}
@@ -37,11 +30,6 @@ export function MobileTechnicianBottomNav({ activeTab, setActiveTab }) {
               <Icon size={20} className={isActive ? "scale-110 drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]" : ""} />
               <span className="text-[10px] tracking-tight">{item.name}</span>
 
-              {item.badge && (
-                <span className="absolute top-0 right-2 w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
-                  {item.badge}
-                </span>
-              )}
             </button>
           );
         })}

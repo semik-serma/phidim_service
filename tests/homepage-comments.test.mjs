@@ -16,7 +16,7 @@ function find(tree, predicate) {
   for (const child of React.Children.toArray(tree.props?.children)) {const found = find(child, predicate); if (found) return found;}
   return null;
 }
-function harness({authenticated = true, load = async () => [], post} = {}) {
+function harness({authenticated = true, load = async () => [], post, reply} = {}) {
   const hooks = [], effects = [], storage = new Map(); let cursor = 0;
   const module = {exports: {}};
   vm.runInNewContext(compiled.code, {module, exports: module.exports, React, AbortController, setTimeout: () => 0,
@@ -31,7 +31,7 @@ function harness({authenticated = true, load = async () => [], post} = {}) {
       if (name === '@/context/AuthContext') return {useAuth: () => ({user: authenticated ? {id: '23', displayName: 'Sam'} : null, isAuthenticated: authenticated})};
       if (name === 'lucide-react') return new Proxy({}, {get: () => () => null});
       if (name === '@/services/articleService') return {fetchNewestDjangoArticle: async () => ({id: 17, title: 'Article', content: 'Body'})};
-      if (name === '@/services/commentService') return {fetchDjangoComments: load, postDjangoComment: post};
+      if (name === '@/services/commentService') return {fetchDjangoComments: load, postDjangoComment: post, postDjangoReply: reply};
       if (name === '@/lib/backendWarning') return {BACKEND_READY: false};
       throw new Error('Unexpected import ' + name);
     }});
@@ -53,6 +53,45 @@ test('posting waits for persistence, prevents duplicates and displays saved comm
   await pending;
   assert.equal(find(h.render(), n => n.type === 'form'), null);
   assert.ok(find(h.render(), n => n.type === 'p' && n.props.children === 'hello'));
+});
+
+const parentComment = {id: 'django-cmt-8', djangoId: 8, text: 'Parent', author: {name: 'Sam'}, replies: []};
+function openReply(h) {
+  find(h.render(), n => n.type === 'button' && n.props.title === 'Reply to comment').props.onClick();
+  find(h.render(), n => n.type === 'input' && n.props['aria-label'] === 'Reply text').props.onChange({target: {value: ' hello reply '}});
+  return find(h.render(), n => n.type === 'button' && n.props.children === 'Send');
+}
+
+test('replies wait for the server, prevent duplicate sends, and display the saved reply', async () => {
+  let resolveReply, calls = 0;
+  const h = harness({load: async () => [parentComment], reply: args => {
+    calls++; assert.equal(args.articleId, 17); assert.equal(args.commentDjangoId, 8); assert.equal(args.replyText, 'hello reply');
+    return new Promise(resolve => {resolveReply = resolve;});
+  }});
+  await h.ready(); const send = openReply(h); const pending = send.props.onClick(); await send.props.onClick();
+  assert.equal(calls, 1);
+  assert.ok(find(h.render(), n => n.type === 'button' && n.props.children === 'Sending…').props.disabled);
+  assert.equal(find(h.render(), n => n.type === 'p' && n.props.children === 'hello reply'), null);
+  resolveReply({id: 'django-rep-1', djangoId: 1, text: 'hello reply', author: {name: 'khirish shrestha'}, createdAt: 'Just now'});
+  await pending;
+  assert.ok(find(h.render(), n => n.type === 'p' && n.props.children === 'hello reply'));
+  assert.ok(find(h.render(), n => n.type === 'span' && n.props.children === 'khirish shrestha'));
+  assert.equal(find(h.render(), n => n.type === 'input' && n.props['aria-label'] === 'Reply text'), null);
+});
+
+test('failed replies keep the draft and allow retry without adding a false reply', async () => {
+  const h = harness({load: async () => [parentComment], reply: async () => {throw new Error('Offline');}});
+  await h.ready(); await openReply(h).props.onClick();
+  assert.equal(find(h.render(), n => n.type === 'input' && n.props['aria-label'] === 'Reply text').props.value, ' hello reply ');
+  assert.ok(find(h.render(), n => n.props.role === 'alert'));
+  assert.equal(find(h.render(), n => n.type === 'p' && n.props.children === 'hello reply'), null);
+  assert.equal(find(h.render(), n => n.type === 'button' && n.props.children === 'Send').props.disabled, false);
+});
+
+test('visitors cannot send replies and receive a sign-in action', async () => {
+  const h = harness({authenticated: false, load: async () => [parentComment], reply: () => assert.fail('Visitor must not post')});
+  await h.ready(); await openReply(h).props.onClick();
+  assert.ok(find(h.render(), n => n.type === 'button' && n.props.children === 'Sign in'));
 });
 test('failed posts preserve the editable draft and show error without a saved comment', async () => {
   const h = harness({post: async () => {throw new Error('Server unavailable');}});

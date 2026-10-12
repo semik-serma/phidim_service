@@ -55,6 +55,9 @@ export function HomepageCommentSection() {
   // Active reply state: { parentCommentId: string | null }
   const [activeReplyId, setActiveReplyId] = useState(null);
   const [replyInputText, setReplyInputText] = useState("");
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [replyError, setReplyError] = useState("");
+  const replyRequest = useRef(null);
 
   const [commentsStatus, setCommentsStatus] = useState("idle");
   const [commentsReloadKey, setCommentsReloadKey] = useState(0);
@@ -122,9 +125,13 @@ export function HomepageCommentSection() {
   useEffect(() => {
     setCommentError("");
     setIsSubmittingComment(false);
+    setReplyError("");
+    setIsSubmittingReply(false);
     return () => {
       commentRequest.current?.abort();
       commentRequest.current = null;
+      replyRequest.current?.abort();
+      replyRequest.current = null;
     };
   }, [article?.id]);
 
@@ -196,88 +203,43 @@ export function HomepageCommentSection() {
   };
 
   const handleAddReply = async (parentCommentId) => {
-    if (!article) return;
-    if (!BACKEND_READY) {
-      triggerBackendWarning();
-      return;
-    }
+    if (!article || replyRequest.current || commentsStatus === "loading") return;
     const trimmed = replyInputText.trim();
     if (!trimmed) return;
-
-    const tempRepId = `rep-${Date.now()}`;
-    const authorName = user?.displayName || user?.name || "Community Member";
-    const authorRole = user?.role || "Verified Visitor";
-    const authorAvatar =
-      user?.avatar ||
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80";
-
-    const newReply = {
-      id: tempRepId,
-      author: {
-        name: authorName,
-        avatarUrl: authorAvatar,
-        role: authorRole,
-      },
-      translations: {
-        Nepali: trimmed,
-        English: trimmed,
-      },
-      text: trimmed,
-      likes: 0,
-      createdAt: "Just now",
-    };
-
+    setReplyError("");
+    if (!isAuthenticated) {
+      setReplyError("Please sign in to post a reply.");
+      return;
+    }
     const parent = comments.find((c) => c.id === parentCommentId);
-    const updatedComments = comments.map((c) => {
-      if (c.id === parentCommentId) {
-        return {
-          ...c,
-          replies: [...(c.replies || []), newReply],
-        };
-      }
-      return c;
-    });
-
-    saveComments(updatedComments);
-    setReplyInputText("");
-    setActiveReplyId(null);
-    triggerToast("Your reply has been posted! 💬");
-
-    // Sync to Django Backend Models
+    if (!parent?.djangoId) {
+      setReplyError("Please reload comments before replying.");
+      return;
+    }
+    const controller = new AbortController();
+    replyRequest.current = controller;
+    setIsSubmittingReply(true);
     try {
-      const commentDjangoId =
-        parent?.djangoId ||
-        (typeof parentCommentId === "string" && parentCommentId.startsWith("django-cmt-")
-          ? parseInt(parentCommentId.replace("django-cmt-", ""), 10)
-          : 1);
-
-      if (commentDjangoId) {
-        const savedReply = await postDjangoReply({
-          commentDjangoId,
-          replyText: trimmed,
-          articleId: article.id,
-          userId: user?.djangoId || (typeof user?.id === "number" ? user.id : null),
-        });
-        if (savedReply && savedReply.djangoId) {
-          setComments((prev) =>
-            prev.map((c) => {
-              if (c.id === parentCommentId) {
-                return {
-                  ...c,
-                  replies: (c.replies || []).map((r) =>
-                    r.id === tempRepId
-                      ? { ...r, ...savedReply, id: savedReply.id, djangoId: savedReply.djangoId }
-                      : r
-                  ),
-                };
-              }
-              return c;
-            })
-          );
-        }
+      const savedReply = await postDjangoReply({
+        commentDjangoId: parent.djangoId,
+        replyText: trimmed,
+        articleId: article.id,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      setComments(prev => prev.map(c => c.id === parentCommentId
+        ? { ...c, replies: [...(c.replies || []).filter(r => r.id !== savedReply.id), savedReply] }
+        : c));
+      setReplyInputText("");
+      setActiveReplyId(null);
+      triggerToast("Your reply has been posted! 💬");
+    } catch (error) {
+      if (!controller.signal.aborted) setReplyError(error.message || "Unable to post your reply. Please try again.");
+    } finally {
+      if (replyRequest.current === controller) {
+        replyRequest.current = null;
+        setIsSubmittingReply(false);
       }
-    } catch (err) {
-      console.warn("Failed to sync reply to Django database:", err);
     }
   };
 
@@ -579,8 +541,11 @@ export function HomepageCommentSection() {
                       {/* Comment Actions: Reply, Like, Dislike, Share */}
                       <div className="flex items-center justify-end gap-3.5 text-gray-700 dark:text-gray-300 pt-0.5">
                         <button
+                          disabled={isSubmittingReply}
                           onClick={() => {
                             setActiveReplyId(isReplying ? null : cmt.id);
+                            setReplyInputText("");
+                            setReplyError("");
                           }}
                           className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 transition-colors cursor-pointer"
                           title="Reply to comment"
@@ -633,6 +598,8 @@ export function HomepageCommentSection() {
                           <CornerDownRight className="w-4 h-4 text-gray-400 shrink-0" />
                           <input
                             type="text"
+                            aria-label="Reply text"
+                            disabled={isSubmittingReply}
                             value={replyInputText}
                             onChange={(e) => setReplyInputText(e.target.value)}
                             placeholder={`Reply to ${cmt.author.name}...`}
@@ -646,21 +613,29 @@ export function HomepageCommentSection() {
                           />
                           <button
                             onClick={() => handleAddReply(cmt.id)}
-                            disabled={!replyInputText.trim()}
+                            disabled={isSubmittingReply || commentsStatus === "loading" || !replyInputText.trim()}
                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-full text-xs font-bold cursor-pointer transition-colors"
                           >
-                            Send
+                            {isSubmittingReply ? "Sending…" : "Send"}
                           </button>
                           <button
+                            disabled={isSubmittingReply}
                             onClick={() => {
                               setActiveReplyId(null);
                               setReplyInputText("");
+                              setReplyError("");
                             }}
                             className="px-3 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 text-xs font-semibold cursor-pointer"
                           >
                             Cancel
                           </button>
                         </div>
+                      )}
+                      {isReplying && replyError && (
+                        <p role="alert" className="mt-2 text-xs text-red-600">
+                          {replyError}{" "}
+                          {!isAuthenticated && <button type="button" className="font-bold text-emerald-600 hover:underline cursor-pointer" onClick={() => router.push("/login?redirect=/")}>Sign in</button>}
+                        </p>
                       )}
 
                       {/* Nested Replies Thread */}

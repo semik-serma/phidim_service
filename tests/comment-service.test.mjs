@@ -1,8 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchDjangoComments, postDjangoComment, normalizeDjangoComment } from '../services/commentService.js';
+import { fetchDjangoComments, postDjangoComment, normalizeDjangoComment, postDjangoReply } from '../services/commentService.js';
 
 const baseUrl = 'http://localhost:8000/';
+test('replies send the documented payload with authentication and normalize the returned user', async () => {
+  const saved = {id: 1, article: 17, comment: 8, reply: 'This is my reply.', user: {id: 11, first_name: 'khirish', last_name: 'shrestha', profile: null}, created_at: '2026-10-11T05:36:42.895114Z'};
+  const reply = await postDjangoReply({articleId: 17, commentDjangoId: 8, replyText: ' This is my reply. ', token: 'access-token', baseUrl,
+    fetchImpl: async (url, options) => {
+      assert.equal(url, 'http://localhost:8000/replies/');
+      assert.equal(options.method, 'POST');
+      assert.equal(options.headers.Authorization, 'Bearer access-token');
+      assert.deepEqual(JSON.parse(options.body), {article: 17, comment: 8, reply: 'This is my reply.'});
+      return Response.json(saved);
+    }});
+  assert.equal(reply.author.name, 'khirish shrestha');
+  assert.equal(reply.author.id, 11);
+  assert.equal(reply.author.avatarUrl, '/logo.png');
+  assert.equal(reply.text, saved.reply);
+  assert.equal(reply.rawCreatedAt, saved.created_at);
+  assert.deepEqual(normalizeDjangoComment({id: 8, replies: [saved]}).replies, [reply]);
+});
+
+test('replies reject invalid targets, empty drafts, and missing tokens without sending', async () => {
+  const valid = {articleId: 17, commentDjangoId: 8, replyText: 'hello', token: 'token', fetchImpl: () => assert.fail('Unexpected request')};
+  for (const invalid of [{articleId: null}, {commentDjangoId: null}, {commentDjangoId: 'bad'}, {replyText: ' '}, {token: ''}]) {
+    await assert.rejects(postDjangoReply({...valid, ...invalid}));
+  }
+});
+
+test('reply failures expose validation, authentication, network and invalid response errors', async () => {
+  const valid = {articleId: 17, commentDjangoId: 8, replyText: 'hello', token: 'token'};
+  await assert.rejects(postDjangoReply({...valid, fetchImpl: async () => Response.json({reply: ['Too long.']}, {status: 400})}), /Too long/);
+  await assert.rejects(postDjangoReply({...valid, fetchImpl: async () => new Response('', {status: 401})}), /session expired/);
+  await assert.rejects(postDjangoReply({...valid, fetchImpl: async () => {throw new Error('Offline');}}), /Offline/);
+  await assert.rejects(postDjangoReply({...valid, fetchImpl: async () => Response.json({})}), /invalid reply/);
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(postDjangoReply({...valid, signal: controller.signal, fetchImpl: async (_, options) => options.signal.throwIfAborted()}), {name: 'AbortError'});
+});
 test('post sends required identity, actual article, trimmed text and access token', async () => {
   let request;
   const saved = await postDjangoComment({userId: '23', articleId: 17, text: ' hello ', token: 'access-token', baseUrl,

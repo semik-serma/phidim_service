@@ -29,6 +29,27 @@ function formatRelativeTime(dateString) {
   }
 }
 
+export function normalizeDjangoReply(reply) {
+  const author = reply.author || (typeof reply.user === "object" ? reply.user : null) || {};
+  const name = [author.first_name, author.last_name].filter(Boolean).join(" ");
+  return {
+    id: `django-rep-${reply.id}`,
+    djangoId: reply.id,
+    author: {
+      id: author.id ?? reply.user,
+      username: author.username || "member",
+      name: author.displayName || author.name || name || author.username || "Community Member",
+      avatarUrl: author.avatarUrl || author.avatar || (typeof author.profile === "string" ? author.profile : null) || "/logo.png",
+      role: author.role || "Member",
+    },
+    translations: { Nepali: reply.reply ?? reply.text, English: reply.reply ?? reply.text },
+    text: reply.reply ?? reply.text,
+    likes: reply.likes || 0,
+    createdAt: formatRelativeTime(reply.created_at),
+    rawCreatedAt: reply.created_at,
+  };
+}
+
 export function normalizeDjangoComment(c) {
   if (!c) return null;
   const author = c.author || (typeof c.user === "object" ? c.user : null) || {};
@@ -52,24 +73,7 @@ export function normalizeDjangoComment(c) {
     createdAt: formatRelativeTime(c.created_at),
     rawCreatedAt: c.created_at,
     isCardStyle: true,
-    replies: (c.replies || []).map((r) => ({
-      id: `django-rep-${r.id}`,
-      djangoId: r.id,
-      author: {
-        id: r.author?.id,
-        username: r.author?.username || "member",
-        name: r.author?.name || "Community Member",
-        avatarUrl: r.author?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-        role: r.author?.role || "Verified Customer",
-      },
-      translations: {
-        Nepali: r.reply || r.text,
-        English: r.reply || r.text,
-      },
-      text: r.reply || r.text,
-      likes: 0,
-      createdAt: formatRelativeTime(r.created_at),
-    })),
+    replies: (c.replies || []).map(normalizeDjangoReply),
   };
 }
 
@@ -131,55 +135,26 @@ export async function postDjangoComment({ text, articleId, userId, token = readA
 /**
  * Post a reply to a comment on Django backend
  */
-export async function postDjangoReply({ commentDjangoId, replyText, articleId = 1, userId = null }) {
-  if (!BACKEND_READY) {
-    triggerBackendWarning();
-    return null;
+export async function postDjangoReply({ commentDjangoId, replyText, articleId, token = readAccessToken(), signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL }) {
+  const trimmed = typeof replyText === "string" ? replyText.trim() : "";
+  if (!trimmed) throw new Error("Please enter a reply.");
+  if (!/^[1-9]\d*$/.test(String(articleId ?? ""))) throw new Error("An article is required to reply.");
+  if (!/^[1-9]\d*$/.test(String(commentDjangoId ?? ""))) throw new Error("A saved comment is required to reply.");
+  if (!token) throw new Error("Please sign in again to reply.");
+  const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/replies/", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ article: Number(articleId), comment: Number(commentDjangoId), reply: trimmed }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const detail = data && Object.entries(data).map(([key, value]) => key + ": " + (Array.isArray(value) ? value.join(" ") : String(value))).join("; ");
+    throw new Error(response.status === 401 ? "Your session expired. Please sign in again." : detail || "Unable to post reply (" + response.status + "). Please try again.");
   }
-  try {
-    const payload = {
-      comment: commentDjangoId,
-      reply: replyText,
-      article: articleId || 1,
-    };
-    if (userId) payload.user = userId;
-
-    const res = await fetch(`${DJANGO_API_BASE_URL}/replies/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(`Failed to post reply: ${JSON.stringify(errData)}`);
-    }
-
-    const created = await res.json();
-    return {
-      id: `django-rep-${created.id}`,
-      djangoId: created.id,
-      author: {
-        id: created.author?.id,
-        username: created.author?.username || "member",
-        name: created.author?.name || "Community Member",
-        avatarUrl: created.author?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-        role: created.author?.role || "Verified Customer",
-      },
-      translations: {
-        Nepali: created.reply || created.text,
-        English: created.reply || created.text,
-      },
-      text: created.reply || created.text,
-      likes: 0,
-      createdAt: "Just now",
-    };
-  } catch (error) {
-    console.error("Error posting reply to Django:", error);
-    throw error;
-  }
+  const created = await response.json();
+  if (!created?.id || typeof created.reply !== "string") throw new Error("The server returned an invalid reply. Refresh comments before retrying.");
+  return normalizeDjangoReply(created);
 }
 
 /**

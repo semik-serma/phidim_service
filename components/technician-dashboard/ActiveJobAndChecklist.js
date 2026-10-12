@@ -105,9 +105,9 @@ export function ActiveJobAndChecklist({
         <div className="w-16 h-16 rounded-3xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
           <Zap size={32} />
         </div>
-        <h3 className="text-lg font-black text-slate-900 dark:text-white">No Active Job Currently</h3>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">No Active Bookings</h3>
         <p className="text-xs text-slate-500 max-w-md mx-auto">
-          Accept a job request from the list above to launch the real-time job control center, OTP customer verification, photo uploader, and service checklist.
+          You have no active bookings at the moment.
         </p>
       </div>
     );
@@ -129,7 +129,7 @@ export function ActiveJobAndChecklist({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                Active Job Control Center
+                My Bookings
               </h3>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white font-mono font-bold text-xs">
                 {activeJob.id}

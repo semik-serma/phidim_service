@@ -17,15 +17,16 @@ test('loads service area choices from the configured API and handles failures', 
 });
 const saved = { id: 18, status: 'p', latitude: '27.1600000', longitude: '87.9200000', date: '2026-09-10T10:30:00Z', created_at: '2026-10-09T07:25:42.189935Z', updated_at: '2026-10-09T07:25:42.189945Z', problem_details: 'Camera has no video.', technician: 6, customer: 11 };
 
-test('technicians use profile IDs, real details, and anonymous GET', async () => {
+test('technicians use top-level IDs, real details, and anonymous GET', async () => {
   const rows = await fetchTechnicians({ baseUrl: 'http://localhost:8000///', fetchImpl: async (url, options) => {
     assert.equal(url, 'http://localhost:8000/technicians/');
     assert.equal(options.headers, undefined);
-    return Response.json([{first_name: 'Ram', last_name: 'Sita', email: 'ram@example.test', phone_number: '', profile: {id: 6, user: 7, phone_number: '9867124534', rating: 0}}, {profile: null}]);
+    return Response.json([{id: 10, first_name: 'Ram', last_name: 'Sita', email: 'ram@example.test', phone_number: '', profile: {id: 9, user: 10, phone_number: '9867124534', rating: 0}}, {profile: null}]);
   }});
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].id, 6);
-  assert.equal(rows[0].userId, 7);
+  assert.equal(rows[0].id, 10);
+  assert.equal(buildBookingPayload({...input, technicianId: rows[0].id}).technician, 10);
+  assert.equal(rows[0].userId, 10);
   assert.equal(rows[0].name, 'Ram Sita');
   assert.equal(rows[0].phone, '9867124534');
   assert.equal(rows[0].rating, 0);
@@ -33,7 +34,7 @@ test('technicians use profile IDs, real details, and anonymous GET', async () =>
 
 test('supports paginated lists and rejects pagination loops and malformed data', async () => {
   let calls = 0;
-  const rows = await fetchTechnicians({baseUrl: 'http://localhost:8000', fetchImpl: async () => Response.json(++calls === 1 ? {results: [{profile: {id: 6}}], next: '?page=2'} : {results: [{profile: {id: 9}}], next: null})});
+  const rows = await fetchTechnicians({baseUrl: 'http://localhost:8000', fetchImpl: async () => Response.json(++calls === 1 ? {results: [{id: 6, profile: {id: 60}}], next: '?page=2'} : {results: [{id: 9, profile: {id: 90}}], next: null})});
   assert.deepEqual(rows.map(row => row.id), [6, 9]);
   await assert.rejects(fetchTechnicians({fetchImpl: async () => Response.json({results: [], next: '/technicians/'})}), /pagination/);
   await assert.rejects(fetchTechnicians({fetchImpl: async () => Response.json({unexpected: []})}), /Invalid technician/);
