@@ -1,3 +1,4 @@
+import { djangoFetch } from "../lib/djangoClient.js";
 const API_BASE = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function readToken() {
@@ -12,7 +13,7 @@ async function errorMessage(response, fallback) {
   return data ? Object.entries(data).map(([key, value]) => (key === "non_field_errors" ? "" : key + ": ") + (Array.isArray(value) ? value.join(" ") : String(value))).join("; ") : fallback;
 }
 
-export async function fetchBookings({ token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+export async function fetchBookings({ token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   if (!token) throw new Error("Please sign in again to view your bookings.");
   let url = new URL(baseUrl.replace(/\/+$/, "") + "/bookings/");
   const origin = url.origin;
@@ -39,7 +40,7 @@ export async function fetchBookings({ token = readToken(), baseUrl = API_BASE, f
   return bookings;
 }
 
-export async function updateTechnicianBooking(bookingId, status, { token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+export async function updateTechnicianBooking(bookingId, status, { token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   if (!Number.isInteger(bookingId) || bookingId <= 0) throw new Error("Select a valid booking.");
   if (!["c", "r"].includes(status)) throw new Error("Select accept or reject.");
   if (!token) throw new Error("Please sign in again to update this booking.");
@@ -56,7 +57,7 @@ export async function updateTechnicianBooking(bookingId, status, { token = readT
   return saved;
 }
 
-export async function fetchServiceAreas({ token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+export async function fetchServiceAreas({ token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/service-areas/", {
     signal, ...(token ? { headers: { Authorization: "Bearer " + token } } : {}),
   });
@@ -69,7 +70,7 @@ export async function fetchServiceAreas({ token = readToken(), baseUrl = API_BAS
   return rows;
 }
 
-export async function fetchServicesByArea(serviceAreaId, { token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+export async function fetchServicesByArea(serviceAreaId, { token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   const areaId = Number(serviceAreaId);
   if (!Number.isInteger(areaId) || areaId <= 0) throw new Error("Select a valid service area.");
   const url = new URL(baseUrl.replace(/\/+$/, "") + "/services/");
@@ -86,7 +87,7 @@ export async function fetchServicesByArea(serviceAreaId, { token = readToken(), 
   return rows;
 }
 
-export async function fetchTechnicians({ baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+export async function fetchTechnicians({ baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   let url = new URL(baseUrl.replace(/\/+$/, "") + "/technicians/");
   const origin = url.origin;
   const seen = new Set();
@@ -137,7 +138,7 @@ export function buildBookingPayload(data) {
   return { technician: data.technicianId, ...(data.serviceAreaId != null ? { service_area: data.serviceAreaId } : {}), ...coordinates, date: nepalDateTimeToUTC(data.date, data.time), problem_details: details };
 }
 
-export async function postBooking(data, { token = readToken(), baseUrl = API_BASE, fetchImpl = fetch, signal } = {}) {
+export async function postBooking(data, { token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   const payload = buildBookingPayload(data);
   if (!token) throw new Error("Please sign in again to book a service.");
   const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/bookings/", {

@@ -64,7 +64,7 @@ const response = data => ({ ok: true, json: async () => data });
 test("API text loads in order, rotates, navigates and remains dismissed", async () => {
   let resolve, options;
   const banner = mount((url, init) => {
-    assert.equal(url, "https://api.example.test/announcements/");
+    assert.equal(url, "/api/django/announcements/");
     options = init;
     return new Promise(done => { resolve = done; });
   }, "https://api.example.test///");
@@ -116,7 +116,7 @@ test("empty, malformed and failed responses keep the banner hidden", async () =>
 test("unmount aborts pending requests and removes subscribers and timers", async () => {
   let resolve, signal;
   const banner = mount((url, options) => {
-    assert.equal(url, "http://localhost:8000/announcements/");
+    assert.equal(url, "/api/django/announcements/");
     signal = options.signal;
     return new Promise(done => { resolve = done; });
   });

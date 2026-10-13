@@ -1,3 +1,4 @@
+import { djangoFetch, djangoBrowserUrl } from "../lib/djangoClient.js";
 const DJANGO_API_BASE_URL = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export function selectNewestArticle(articles) {
@@ -14,11 +15,11 @@ export function resolveArticleImage(image, baseUrl = DJANGO_API_BASE_URL) {
   if (!image) return null;
   try {
     const url = new URL(image, baseUrl + "/");
-    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+    return ["http:", "https:"].includes(url.protocol) ? djangoBrowserUrl(url.href) : null;
   } catch { return null; }
 }
 
-export async function fetchNewestDjangoArticle({ signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL } = {}) {
+export async function fetchNewestDjangoArticle({ signal, fetchImpl = djangoFetch, baseUrl = DJANGO_API_BASE_URL } = {}) {
   const articles = [];
   let url = new URL("articles/", baseUrl.replace(/\/$/, "") + "/").href;
   const visited = new Set();

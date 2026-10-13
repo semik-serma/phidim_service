@@ -74,6 +74,14 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
     refresh() { visit(tree, node => node.type === 'button').props.onClick(); },
     search(value) { visit(tree, node => node.type === 'input').props.onChange({ target: { value } }); },
     open(id) { visit(tree, node => node.props?.['aria-label'] === `Review booking #${id}`).props.onClick({ stopPropagation() {} }); },
+    clickMap() {
+      const row = visit(tree, node => node.type === 'tr' && typeof node.props.onClick === 'function');
+      const control = visit(row, node => node.type === 'div' && typeof node.props.onClick === 'function');
+      let stopped = false;
+      control.props.onClick({ stopPropagation() { stopped = true; } });
+      if (!stopped) row.props.onClick();
+      return stopped;
+    },
     decide(status) { return visit(tree, node => node.type === 'button' && React.Children.toArray(node.props.children).includes(status === 'c' ? 'Accept booking' : 'Reject booking')).props.onClick(); },
     close() { visit(tree, node => node.props?.['aria-label'] === 'Close booking review').props.onClick(); },
     unmount() { effects.forEach(effect => effect.cleanup?.()); },
@@ -81,6 +89,36 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const booking = { id: 20, status: 'p', status_display: 'pending', customer: { first_name: 'ram', last_name: 'sita' }, technician: { first_name: 'semik', last_name: 'anaconda' }, date: '2026-10-14T04:48:00Z', problem_details: 'Home Appliance service I need', latitude: '26.6500000', longitude: '87.6500000' };
+
+test('map links use each booking location and open separately without opening review', async () => {
+  const app = harness(async () => [booking, { ...booking, id: 21, latitude: 0, longitude: -180 }]);
+  app.render(); await settle();
+  const html = app.render();
+  assert.match(html, /href="https:\/\/www.google.com\/maps\/search\/\?api=1&amp;query=26.6500000%2C87.6500000"/);
+  assert.match(html, /query=0%2C-180/);
+  assert.equal((html.match(/target="_blank" rel="noopener noreferrer"/g) || []).length, 2);
+  assert.match(html, /Show map for booking #20 \(opens in a new tab\)/);
+  assert.equal(app.clickMap(), true);
+  assert.doesNotMatch(app.render(), /<dialog/);
+  app.open(20);
+  assert.match(app.render(), /<dialog/);
+  app.unmount();
+});
+
+test('missing or invalid coordinates disable map controls with an explanation', async () => {
+  const invalid = [null, undefined, '', '  ', 'invalid', Infinity, NaN, 91, -91, true, {}];
+  const rows = invalid.map((latitude, index) => ({ ...booking, id: index + 1, latitude }));
+  rows.push(...[null, '', 'invalid', 181, -181].map((longitude, index) => ({ ...booking, id: index + 30, longitude })));
+  const app = harness(async () => rows);
+  app.render(); await settle();
+  const html = app.render();
+  assert.doesNotMatch(html, /https:\/\/www.google.com\/maps/);
+  assert.equal((html.match(/disabled="" aria-describedby="booking-location-unavailable-/g) || []).length, rows.length);
+  assert.equal((html.match(/>Location unavailable</g) || []).length, rows.length);
+  assert.equal(app.clickMap(), true);
+  assert.doesNotMatch(app.render(), /<dialog/);
+  app.unmount();
+});
 
 test('renders real details, multiple bookings, nullable customers, and Nepal time', async () => {
   const app = harness(async () => [booking, { ...booking, id: 16, customer: null, date: null, problem_details: '', status_display: null, latitude: null }]);

@@ -1,3 +1,4 @@
+import { djangoFetch, djangoBrowserUrl } from "../lib/djangoClient.js";
 const API_BASE = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function normalizeTechnician(row, baseUrl) {
@@ -8,7 +9,7 @@ function normalizeTechnician(row, baseUrl) {
   let avatar = "";
   if (typeof image === "string" && image.trim()) {
     const url = new URL(image, baseUrl + "/");
-    if (["http:", "https:"].includes(url.protocol)) avatar = url.href;
+    if (["http:", "https:"].includes(url.protocol)) avatar = djangoBrowserUrl(url.href);
   }
   return {
     id: row.id,
@@ -29,7 +30,7 @@ function normalizeTechnician(row, baseUrl) {
 
 export async function searchTechnicians(
   { serviceAreaId, serviceId },
-  { baseUrl = API_BASE, fetchImpl = fetch, signal } = {},
+  { baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {},
 ) {
   const area = Number(serviceAreaId);
   const service = Number(serviceId);

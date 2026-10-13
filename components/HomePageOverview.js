@@ -25,7 +25,7 @@ import {
 // ---------------------------------------------------------------------------
 // Categories API
 // ---------------------------------------------------------------------------
-const CATEGORIES_API_URL = "http://localhost:8000/categories/";
+const CATEGORIES_API_URL = "/api/django/categories/";
 
 // Keyword -> icon/color rules so dynamic category names coming back from the
 // API still land on a sensible icon + color scheme. Falls back to a plain

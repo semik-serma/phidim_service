@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
+import { requestAccurateLocation } from '../lib/accurateLocation.js';
 import { searchTechnicians } from '../services/technicianSearchService.js';
 import { nepalDateTimeToUTC, buildBookingPayload } from '../services/bookingService.js';
 const require = createRequire(import.meta.url);
@@ -25,7 +26,7 @@ const dashboardCompiled = await compile('components/user-dashboard/UserDashboard
 const tech = { id: 10, userId: 10, name: 'ram sam', rating: 3, email: 'tech@example.test', phone: '9817926978', address: 'koshi, Nepal', avatar: '', isVerified: true, isKycVerified: true, services: [{ id: 25, name: 'House Wiring', description: 'Residential wiring services.' }] };
 const apiTechnician = { id: 10, first_name: 'ram', last_name: 'sam', email: 'tech@example.test', role: 't', is_verified: true, profile: { id: 9, user: 10, rating: 3, address: 'koshi, Nepal', phone_number: '9817926978', is_kyc_verified: true, services: tech.services, nagarita_front: '/media/private-document.jpg', certificate: '/media/certificate.jpg' } };
 const apiOptions = fetchImpl => ({ baseUrl: 'https://api.example.test', fetchImpl });
-function harness({ create = () => assert.fail('Unexpected booking request'), areas = async () => [{ id: 1, name: 'Phidim' }, { id: 2, name: 'Dharan' }], services = async () => [{ id: 25, name: 'House Wiring' }], search = async () => [tech], code = compiled, exported = 'default', props = {}, navigation = [] } = {}) {
+function harness({ create = () => assert.fail('Unexpected booking request'), areas = async () => [{ id: 1, name: 'Phidim' }, { id: 2, name: 'Dharan' }], services = async () => [{ id: 25, name: 'House Wiring' }], search = async () => [tech], code = compiled, exported = 'default', props = {}, navigation = [], gps } = {}) {
   const hooks = [], effects = []; let cursor = 0;
   const module = { exports: {} };
   const actualReact = { ...React,
@@ -46,10 +47,29 @@ function harness({ create = () => assert.fail('Unexpected booking request'), are
     if (name === '@/context/AuthContext') return { useAuth: () => ({ user: { name: 'Customer', email: 'customer@example.test' } }) };
     if (name === '@/components/calls/CallProvider') return { useCall: () => ({}) };
     if (name === '@/lib/bookingStore') return { createBooking: create, getBookingsList: () => [], subscribeBookings: () => () => {} };
+    if (name === '@/lib/accurateLocation') return {requestAccurateLocation: (ok, fail) => requestAccurateLocation(ok, fail, {geolocation: gps})};
     return new Proxy({}, { get: () => () => null });
   } });
   return { render() { cursor = 0; const tree = module.exports[exported](props); effects.splice(0).forEach(effect => effect()); return tree; }, unmount() { hooks.forEach(h => h?.cleanup?.()); } };
 }
+test('technician booking waits for precise coordinates and releases location watch on close', () => {
+  let fix, stopped = 0;
+  const h = harness({exported: 'TechnicianBookingForm', props: {technician: tech, area: {id: 1, name: 'Phidim'}, service: tech.services[0]},
+    gps: {watchPosition(ok) {fix = ok; return 2;}, clearWatch() {stopped++;}}});
+  let tree = h.render(); button(tree, 'Use my location').props.onClick();
+  fix({timestamp: Date.now(), coords: {latitude: 27, longitude: 87, accuracy: 4000}});
+  tree = h.render();
+  assert.equal(nodes(tree).find(n => n.props.name === 'latitude').props.value, '');
+  assert.equal(nodes(tree).find(n => n.props.type === 'submit').props.disabled, true);
+  fix({timestamp: Date.now(), coords: {latitude: 27.16, longitude: 87.92, accuracy: 9}});
+  tree = h.render();
+  assert.equal(nodes(tree).find(n => n.props.name === 'latitude').props.value, '27.1600000');
+  assert.equal(nodes(tree).find(n => n.props.type === 'submit').props.disabled, false);
+  assert.match(text(tree), /9\s+metres/);
+  button(tree, 'Use my location').props.onClick(); h.unmount();
+  assert.ok(stopped >= 2);
+});
+
 async function ready(h) {
   h.render(); await tick(); let tree = h.render();
   byId(tree, 'technician-area').props.onChange({ target: { value: '1' } }); h.render(); await tick(); tree = h.render();

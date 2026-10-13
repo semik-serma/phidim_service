@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchTechnicians, fetchServiceAreas } from "@/services/bookingService";
 import { createBooking } from "@/lib/bookingStore";
+import { requestAccurateLocation } from "@/lib/accurateLocation";
 
 export function useBookingForm(active = true, { requireServiceArea = false } = {}) {
   const [serviceAreas, setServiceAreas] = useState([]);
@@ -20,8 +21,15 @@ export function useBookingForm(active = true, { requireServiceArea = false } = {
   const [submitting, setSubmitting] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [locationAccuracy, setLocationAccuracy] = useState(null);
+  const locationRequest = useRef(null);
   const [retry, setRetry] = useState(0);
   const inFlight = useRef(false);
+
+  useEffect(() => {
+    if (!active) setLocating(false);
+    return () => { locationRequest.current?.(); locationRequest.current = null; };
+  }, [active]);
 
   useEffect(() => {
     if (!active || !requireServiceArea) return;
@@ -54,17 +62,21 @@ export function useBookingForm(active = true, { requireServiceArea = false } = {
   }, [active, retry]);
 
   function locate() {
+    locationRequest.current?.();
     setLocationError("");
-    if (!navigator.geolocation) { setLocationError("Location is unavailable. Enter coordinates manually."); return; }
+    setLocationAccuracy(null);
+    setLatitude("");
+    setLongitude("");
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(position => {
-      setLatitude(position.coords.latitude.toFixed(7));
-      setLongitude(position.coords.longitude.toFixed(7));
+    locationRequest.current = requestAccurateLocation(coords => {
+      setLatitude(coords.latitude.toFixed(7));
+      setLongitude(coords.longitude.toFixed(7));
+      setLocationAccuracy(coords.accuracy);
       setLocating(false);
-    }, () => {
-      setLocationError("Unable to get your location. Allow location access or enter coordinates manually.");
+    }, message => {
+      setLocationError(message);
       setLocating(false);
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    });
   }
 
   async function submit(metadata) {
@@ -73,6 +85,7 @@ export function useBookingForm(active = true, { requireServiceArea = false } = {
     setSubmitting(true);
     setError("");
     try {
+      if (locating) throw new Error("Wait for an accurate location before booking.");
       const technician = technicians.find(row => String(row.id) === technicianId);
       if (loading || loadError || !technician) throw new Error("Select an available technician before booking.");
       const serviceArea = serviceAreas.find(row => String(row.id) === serviceAreaId);
@@ -87,11 +100,13 @@ export function useBookingForm(active = true, { requireServiceArea = false } = {
     }
   }
 
-  return { technicians, technicianId, setTechnicianId, latitude, setLatitude, longitude, setLongitude,
+  return { technicians, technicianId, setTechnicianId, latitude,
+    setLatitude: value => { setLatitude(value); setLocationAccuracy(null); }, longitude,
+    setLongitude: value => { setLongitude(value); setLocationAccuracy(null); },
     requireServiceArea, serviceAreas, serviceAreaId, setServiceAreaId, areasLoading, areasError,
-    time, setTime, loading, loadError, error, submitting, locating, locationError, locate,
+    time, setTime, loading, loadError, error, submitting, locating, locationError, locationAccuracy, locate,
     retry: () => setRetry(value => value + 1), submit,
-    disabled: submitting || loading || !!loadError || !technicians.length || !technicianId ||
+    disabled: submitting || locating || loading || !!loadError || !technicians.length || !technicianId ||
       (requireServiceArea && (areasLoading || !!areasError || !serviceAreas.length || !serviceAreaId)) };
 }
 
@@ -112,10 +127,10 @@ export function BookingFields({ form }) {
           <input required type="time" value={form.time} onChange={e => form.setTime(e.target.value)} className={inputClass} />
         </label>
         <label className="block space-y-1 font-semibold">Latitude *
-          <input required type="number" step="any" min="-90" max="90" value={form.latitude} onChange={e => form.setLatitude(e.target.value)} placeholder="27.1600000" className={inputClass} />
+          <input disabled={form.locating} required type="number" step="any" min="-90" max="90" value={form.latitude} onChange={e => form.setLatitude(e.target.value)} placeholder="27.1600000" className={inputClass} />
         </label>
         <label className="block space-y-1 font-semibold">Longitude *
-          <input required type="number" step="any" min="-180" max="180" value={form.longitude} onChange={e => form.setLongitude(e.target.value)} placeholder="87.9200000" className={inputClass} />
+          <input disabled={form.locating} required type="number" step="any" min="-180" max="180" value={form.longitude} onChange={e => form.setLongitude(e.target.value)} placeholder="87.9200000" className={inputClass} />
         </label>
       </div>
       {form.loadError && <p role="alert" className="text-red-500">{form.loadError}</p>}
@@ -123,6 +138,8 @@ export function BookingFields({ form }) {
       {(form.loadError || (!form.loading && !form.technicians.length)) && <button type="button" onClick={form.retry} className="font-bold underline">Retry technicians</button>}
       <button type="button" disabled={form.locating} onClick={form.locate} className="rounded-lg bg-emerald-600 px-3 py-2 font-bold text-white disabled:opacity-50">{form.locating ? "Getting location…" : "Use my location"}</button>
       {form.locationError && <p role="alert" className="text-red-500">{form.locationError}</p>}
+      {form.locating && <p role="status">Waiting for a precise location (up to 30 seconds)…</p>}
+      {form.locationAccuracy !== null && form.locationAccuracy !== undefined && <p role="status">Device-reported accuracy: within about {Math.ceil(form.locationAccuracy)} metres.</p>}
       {form.error && <p role="alert" className="text-red-500">{form.error}</p>}
       {form.submitting && <p role="status">Creating booking…</p>}
     </fieldset>

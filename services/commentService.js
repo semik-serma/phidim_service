@@ -1,3 +1,4 @@
+import { djangoFetch, djangoBrowserUrl } from "../lib/djangoClient.js";
 /**
  * Django API Comment Service for Phidim Service
  * Connects Next.js comment section with Django REST Framework backend
@@ -39,7 +40,7 @@ export function normalizeDjangoReply(reply) {
       id: author.id ?? reply.user,
       username: author.username || "member",
       name: author.displayName || author.name || name || author.username || "Community Member",
-      avatarUrl: author.avatarUrl || author.avatar || (typeof author.profile === "string" ? author.profile : null) || "/logo.png",
+      avatarUrl: djangoBrowserUrl(author.avatarUrl || author.avatar || (typeof author.profile === "string" ? author.profile : null) || "") || "/logo.png",
       role: author.role || "Member",
     },
     translations: { Nepali: reply.reply ?? reply.text, English: reply.reply ?? reply.text },
@@ -60,7 +61,7 @@ export function normalizeDjangoComment(c) {
       id: author.id ?? c.user,
       username: author.username || "member",
       name: author.displayName || author.name || author.username || "Community Member",
-      avatarUrl: author.avatarUrl || author.avatar || "/logo.png",
+      avatarUrl: djangoBrowserUrl(author.avatarUrl || author.avatar || "") || "/logo.png",
       role: author.role || "Member",
     },
     translations: {
@@ -80,7 +81,7 @@ export function normalizeDjangoComment(c) {
 /**
  * Fetch all comments from Django backend
  */
-export async function fetchDjangoComments(articleId, { signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL } = {}) {
+export async function fetchDjangoComments(articleId, { signal, fetchImpl = djangoFetch, baseUrl = DJANGO_API_BASE_URL } = {}) {
   if (!articleId) throw new Error("An article is required to load comments.");
   const base = new URL(baseUrl.replace(/\/+$/, "") + "/");
   let url = new URL("comments/", base);
@@ -110,7 +111,7 @@ function readAccessToken() {
   return cookie ? cookie.slice("phidim_access_token=".length) : "";
 }
 
-export async function postDjangoComment({ text, articleId, userId, token = readAccessToken(), signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL }) {
+export async function postDjangoComment({ text, articleId, userId, token = readAccessToken(), signal, fetchImpl = djangoFetch, baseUrl = DJANGO_API_BASE_URL }) {
   const trimmed = typeof text === "string" ? text.trim() : "";
   if (!trimmed) throw new Error("Please enter a comment.");
   if (!articleId) throw new Error("An article is required to comment.");
@@ -135,7 +136,7 @@ export async function postDjangoComment({ text, articleId, userId, token = readA
 /**
  * Post a reply to a comment on Django backend
  */
-export async function postDjangoReply({ commentDjangoId, replyText, articleId, token = readAccessToken(), signal, fetchImpl = fetch, baseUrl = DJANGO_API_BASE_URL }) {
+export async function postDjangoReply({ commentDjangoId, replyText, articleId, token = readAccessToken(), signal, fetchImpl = djangoFetch, baseUrl = DJANGO_API_BASE_URL }) {
   const trimmed = typeof replyText === "string" ? replyText.trim() : "";
   if (!trimmed) throw new Error("Please enter a reply.");
   if (!/^[1-9]\d*$/.test(String(articleId ?? ""))) throw new Error("An article is required to reply.");
@@ -166,7 +167,7 @@ export async function likeDjangoComment(commentDjangoId, action = "like") {
     return null;
   }
   try {
-    const res = await fetch(`${DJANGO_API_BASE_URL}/comments/${commentDjangoId}/like/`, {
+    const res = await djangoFetch(`${DJANGO_API_BASE_URL}/comments/${commentDjangoId}/like/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

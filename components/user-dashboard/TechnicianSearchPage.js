@@ -20,6 +20,7 @@ import {
 } from "@/services/bookingService";
 import { searchTechnicians } from "@/services/technicianSearchService";
 import { createBooking } from "@/lib/bookingStore";
+import { requestAccurateLocation } from "@/lib/accurateLocation";
 import { useAuth } from "@/context/AuthContext";
 
 const inputClass =
@@ -124,6 +125,8 @@ export function TechnicianBookingForm({
   const inFlight = useRef(false);
   const [error, setError] = useState("");
   const [locationError, setLocationError] = useState("");
+  const [locationAccuracy, setLocationAccuracy] = useState(null);
+  const locationRequest = useRef(null);
   const [locating, setLocating] = useState(false);
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -132,6 +135,7 @@ export function TechnicianBookingForm({
     active.current = true;
     return () => {
       active.current = false;
+      locationRequest.current?.();
     };
   }, []);
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -141,27 +145,25 @@ export function TechnicianBookingForm({
     day: "2-digit",
   }).format(new Date());
   function locate() {
+    locationRequest.current?.();
     setLocationError("");
-    if (!navigator.geolocation) {
-      setLocationError("Location is unavailable. Enter coordinates manually.");
-      return;
-    }
+    setLocationAccuracy(null);
+    setLatitude("");
+    setLongitude("");
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    locationRequest.current = requestAccurateLocation(
+      (coords) => {
         if (!active.current) return;
-        setLatitude(position.coords.latitude.toFixed(7));
-        setLongitude(position.coords.longitude.toFixed(7));
+        setLatitude(coords.latitude.toFixed(7));
+        setLongitude(coords.longitude.toFixed(7));
+        setLocationAccuracy(coords.accuracy);
         setLocating(false);
       },
-      () => {
+      (message) => {
         if (!active.current) return;
-        setLocationError(
-          "Unable to get your location. Allow location access or enter coordinates manually.",
-        );
+        setLocationError(message);
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }
   async function confirm(event) {
@@ -172,6 +174,7 @@ export function TechnicianBookingForm({
     setSubmitting(true);
     setError("");
     try {
+      if (locating) throw new Error("Wait for an accurate location before booking.");
       if (
         !String(values.get("address") || "").trim() ||
         !String(values.get("notes") || "").trim()
@@ -284,7 +287,8 @@ export function TechnicianBookingForm({
                   min="-90"
                   max="90"
                   value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
+                  disabled={locating}
+                  onChange={(e) => { setLatitude(e.target.value); setLocationAccuracy(null); }}
                   className={inputClass}
                   placeholder="27.1600000"
                 />
@@ -299,7 +303,8 @@ export function TechnicianBookingForm({
                   min="-180"
                   max="180"
                   value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
+                  disabled={locating}
+                  onChange={(e) => { setLongitude(e.target.value); setLocationAccuracy(null); }}
                   className={inputClass}
                   placeholder="87.9200000"
                 />
@@ -318,6 +323,8 @@ export function TechnicianBookingForm({
                 {locationError}
               </p>
             )}
+            {locating && <p role="status" className="text-sm">Waiting for a precise location (up to 30 seconds)…</p>}
+            {locationAccuracy !== null && <p role="status" className="text-sm">Device-reported accuracy: within about {Math.ceil(locationAccuracy)} metres.</p>}
             <label className="block space-y-1.5 text-sm">
               <span>Problem details *</span>
               <textarea
@@ -336,7 +343,7 @@ export function TechnicianBookingForm({
             )}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || locating}
               className={primaryClass + " w-full"}
             >
               {submitting ? (

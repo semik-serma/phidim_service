@@ -66,8 +66,7 @@ export function AnnouncementBanner() {
 
     async function loadAnnouncements() {
       try {
-        const baseUrl = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
-        const response = await fetch(`${baseUrl}/announcements/`, {
+        const response = await fetch("/api/django/announcements/", {
           signal: controller.signal,
           cache: "no-store",
         });

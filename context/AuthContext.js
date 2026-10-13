@@ -55,9 +55,6 @@ export const DEMO_ACCOUNTS = {
 };
 
 const SESSION_KEY = "phidim_auth_user";
-const DJANGO_API_URL =
-  process.env.NEXT_PUBLIC_DJANGO_API_URL ||
-  "http://localhost:8000";
 
 function parseJwtPayload(token) {
   if (!token || typeof token !== "string") return null;
@@ -70,11 +67,6 @@ function parseJwtPayload(token) {
   } catch (e) {
     return null;
   }
-}
-
-function getDjangoLoginUrl() {
-  const baseUrl = DJANGO_API_URL.replace(/\/+$/, "");
-  return `${baseUrl}/login/`;
 }
 
 function getAuthErrorMessage(status, data) {
@@ -204,7 +196,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async ({ emailOrPhone, password, rememberMe = false, role = "USER" }) => {
       try {
-        const res = await fetch(getDjangoLoginUrl(), {
+        const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "omit",
@@ -270,7 +262,7 @@ export function AuthProvider({ children }) {
         return verified;
       } catch (error) {
         if (error instanceof TypeError) {
-          throw new Error("Could not reach the login API at http://localhost:8000/login/. Please make sure it is running and allows requests from this frontend.");
+          throw new Error("Could not reach the login service. Please check your connection and try again.");
         }
         throw error;
       }

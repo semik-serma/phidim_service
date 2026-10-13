@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import vm from 'node:vm';
+import { requestAccurateLocation } from '../lib/accurateLocation.js';
 const require = createRequire(import.meta.url);
 const React = require('react');
 const {transform} = require('next/dist/build/swc');
@@ -20,6 +21,7 @@ function harness({load = async () => [{id: 6, userId: 7, name: 'Ram Sita'}], loa
     };
     if (name === '@/services/bookingService') return {fetchTechnicians: load, fetchServiceAreas: loadAreas};
     if (name === '@/lib/bookingStore') return {createBooking: create};
+    if (name === '@/lib/accurateLocation') return {requestAccurateLocation: (ok, fail) => requestAccurateLocation(ok, fail, {geolocation: gps})};
     throw new Error('Unexpected import ' + name);
   }});
   return {render(active = true) {cursor = 0; const form = module.exports.useBookingForm(active, {requireServiceArea}); while(effects.length) effects.shift()(); return form;}, unmount() {hooks.forEach(h => h?.cleanup?.());}};
@@ -95,14 +97,32 @@ test('technician load failure and empty list block booking, retry loads real cho
   h.unmount();
 });
 
-test('GPS success fills coordinates and GPS denial preserves manually entered location', async () => {
+test('GPS success fills accurate coordinates and GPS denial clears stale coordinates', async () => {
   let fail = false;
-  const h = harness({gps: {getCurrentPosition(ok, error) {if (fail) error({code: 1}); else ok({coords: {latitude: 27.16, longitude: 87.92}});}}});
+  const h = harness({gps: {watchPosition(ok, error) {if (fail) error({code: 1}); else ok({timestamp: Date.now(), coords: {latitude: 27.16, longitude: 87.92, accuracy: 12}}); return 1;}, clearWatch() {}}});
   let f = await fill(h); f.locate(); f = h.render();
   assert.equal(f.latitude, '27.1600000'); assert.equal(f.longitude, '87.9200000');
+  assert.equal(f.locationAccuracy, 12);
   f.setLatitude('28'); f.setLongitude('88'); fail = true;
   f = h.render(); f.locate(); f = h.render();
-  assert.equal(f.latitude, '28'); assert.equal(f.longitude, '88'); assert.match(f.locationError, /enter coordinates manually/);
+  assert.equal(f.latitude, ''); assert.equal(f.longitude, ''); assert.match(f.locationError, /enter coordinates manually/);
+  h.unmount();
+});
+
+test('coarse location blocks submission until a precise fix; closing cancels detection', async () => {
+  let fix, cleared = 0;
+  const h = harness({gps: {watchPosition(ok) {fix = ok; return 4;}, clearWatch() {cleared++;}}, create: () => assert.fail('Must wait for precise coordinates')});
+  let f = await fill(h); f.locate(); f = h.render();
+  fix({timestamp: Date.now(), coords: {latitude: 27, longitude: 87, accuracy: 2000}});
+  f = h.render(); assert.equal(f.latitude, ''); assert.equal(f.locating, true); assert.equal(f.disabled, true);
+  assert.equal(await f.submit(metadata), null);
+  fix({timestamp: Date.now(), coords: {latitude: 27.16, longitude: 87.92, accuracy: 10}});
+  f = h.render(); assert.equal(f.locating, false); assert.equal(f.disabled, false); assert.equal(f.locationAccuracy, 10);
+  f.setLatitude('28'); assert.equal(h.render().locationAccuracy, null);
+  f = h.render(); f.locate(); h.render(false);
+  const stoppedAt = cleared;
+  fix({timestamp: Date.now(), coords: {latitude: 25, longitude: 85, accuracy: 5}});
+  assert.equal(h.render(false).latitude, ''); assert.ok(stoppedAt >= 2);
   h.unmount();
 });
 

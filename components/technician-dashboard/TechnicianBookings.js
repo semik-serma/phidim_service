@@ -21,7 +21,7 @@ function scheduledDate(value) {
 }
 
 function coordinate(value, limit) {
-  if (value == null || String(value).trim() === "" || !Number.isFinite(Number(value)) || Math.abs(Number(value)) > limit) return "Unavailable";
+  if (!["string", "number"].includes(typeof value) || String(value).trim() === "" || !Number.isFinite(Number(value)) || Math.abs(Number(value)) > limit) return "Unavailable";
   return String(value);
 }
 
@@ -161,7 +161,13 @@ export function TechnicianBookings() {
             <tbody className="divide-y divide-slate-100 dark:divide-emerald-900/30">
               {filteredBookings.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No bookings match your search.</td></tr>
-              ) : filteredBookings.map(booking => (
+              ) : filteredBookings.map(booking => {
+                const latitude = coordinate(booking.latitude, 90);
+                const longitude = coordinate(booking.longitude, 180);
+                const mapUrl = latitude !== "Unavailable" && longitude !== "Unavailable"
+                  ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(latitude.trim() + "," + longitude.trim())
+                  : null;
+                return (
                 <tr key={booking.id} onClick={() => openBooking(booking)} className="cursor-pointer align-top hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20">
                   <th scope="row" className="px-4 py-4 font-bold whitespace-nowrap"><button type="button" aria-label={`Review booking #${booking.id}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); openBooking(booking); }} className="rounded text-emerald-700 dark:text-emerald-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Booking #{booking.id}</button></th>
                   <td className="px-4 py-4 break-words min-w-36">{personName(booking.customer, "Customer unavailable")}</td>
@@ -169,9 +175,23 @@ export function TechnicianBookings() {
                   <td className="px-4 py-4"><span className="inline-block rounded-full bg-emerald-100 dark:bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300">{booking.status_display || booking.status || "Status unavailable"}</span></td>
                   <td className="px-4 py-4 min-w-48">{scheduledDate(booking.date)}</td>
                   <td className="px-4 py-4 min-w-64 max-w-sm whitespace-pre-wrap break-words">{booking.problem_details?.trim() || "Problem details unavailable"}</td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div>Latitude: {coordinate(booking.latitude, 90)}</div><div>Longitude: {coordinate(booking.longitude, 180)}</div></td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div>Latitude: {latitude}</div>
+                    <div>Longitude: {longitude}</div>
+                    <div className="mt-3" onClick={event => event.stopPropagation()}>
+                      {mapUrl ? (
+                        <a href={mapUrl} target="_blank" rel="noopener noreferrer" aria-label={`Show map for booking #${booking.id} (opens in a new tab)`} className="inline-flex rounded-xl bg-emerald-50 dark:bg-emerald-950 px-4 py-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Show map</a>
+                      ) : (
+                        <>
+                          <button type="button" disabled aria-describedby={`booking-location-unavailable-${booking.id}`} className="rounded-xl bg-emerald-50 dark:bg-emerald-950 px-4 py-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 opacity-50 cursor-not-allowed">Show map</button>
+                          <p id={`booking-location-unavailable-${booking.id}`} className="mt-1 text-xs text-slate-500 dark:text-slate-400">Location unavailable</p>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
