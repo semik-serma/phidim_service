@@ -17,13 +17,14 @@ const compiled = await transform(source, {
 
 // Drive effect lifetimes explicitly so delayed requests can be resolved after
 // a session change, without adding a browser/test-renderer dependency.
-function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpected update'); }) {
+function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpected update'); }, browser = {}) {
   let auth = { user: { id: '8', role: 'TECHNICIAN' }, isAuthenticated: true, isLoading: false };
   const states = [], effects = [], refs = [];
   let stateIndex = 0, effectIndex = 0, refIndex = 0, pending = [], tree;
   const module = { exports: {} };
   vm.runInNewContext(compiled.code, {
-    module, exports: module.exports, React, AbortController, Intl, Date,
+    module, exports: module.exports, React, AbortController, Intl, Date, URLSearchParams,
+    window: { isSecureContext: false }, navigator: {}, ...browser,
     require: name => {
       if (name === 'react') return {
         useRef(initial) {
@@ -74,6 +75,7 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
     refresh() { visit(tree, node => node.type === 'button').props.onClick(); },
     search(value) { visit(tree, node => node.type === 'input').props.onChange({ target: { value } }); },
     open(id) { visit(tree, node => node.props?.['aria-label'] === `Review booking #${id}`).props.onClick({ stopPropagation() {} }); },
+    mapLink(id = 20) { return visit(tree, node => node.type === 'a' && node.props['aria-label'].includes(`for booking #${id} `))?.props; },
     clickMap() {
       const row = visit(tree, node => node.type === 'tr' && typeof node.props.onClick === 'function');
       const control = visit(row, node => node.type === 'div' && typeof node.props.onClick === 'function');
@@ -89,6 +91,147 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const booking = { id: 20, status: 'p', status_display: 'pending', customer: { first_name: 'ram', last_name: 'sita' }, technician: { first_name: 'semik', last_name: 'anaconda' }, date: '2026-10-14T04:48:00Z', problem_details: 'Home Appliance service I need', latitude: '26.6500000', longitude: '87.6500000' };
+
+function mapBrowser({ secure = true, supported = true, throws = false } = {}) {
+  const requests = [], timers = new Map();
+  let timerId = 0;
+  return {
+    requests, timers,
+    expire() { for (const callback of [...timers.values()]) callback(); },
+    globals: {
+      window: {
+        isSecureContext: secure,
+        open() { assert.fail('Location requests must not open a tab'); },
+        location: { assign() { assert.fail('Location requests must not navigate'); } },
+      },
+      navigator: { geolocation: supported ? {
+        getCurrentPosition(success, failure, options) {
+          if (throws) throw new Error('Location unavailable');
+          requests.push({ success, failure, options });
+        },
+      } : undefined },
+      setTimeout(callback, delay) { assert.equal(delay, 15000); timers.set(++timerId, callback); return timerId; },
+      clearTimeout(id) { timers.delete(id); },
+    },
+  };
+}
+
+test('page entry requests location once and changes booking links to Map direction when precise', async () => {
+  const browser = mapBrowser();
+  const app = harness(async () => [booking, { ...booking, id: 21, latitude: 0, longitude: -180 }], undefined, browser.globals);
+  app.render();
+  assert.equal(browser.requests.length, 1);
+  await settle(); app.render();
+  assert.equal(app.mapLink().children, 'Show map');
+  assert.equal(new URL(app.mapLink().href).pathname, '/maps/search/');
+  assert.equal(app.mapLink().onClick, undefined);
+  assert.equal(app.clickMap(), true);
+  assert.doesNotMatch(app.render(), /<dialog/);
+  const request = browser.requests[0];
+  assert.deepEqual({ ...request.options }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+  request.success({ coords: { latitude: 0, longitude: 87.5, accuracy: 100 } });
+  app.render();
+  const link = app.mapLink(21);
+  assert.equal(link.children, 'Map direction');
+  assert.equal(link['aria-label'], 'Map direction for booking #21 (opens in a new tab)');
+  assert.equal(link.target, '_blank');
+  assert.equal(link.rel, 'noopener noreferrer');
+  assert.equal(link.onClick, undefined);
+  const url = new URL(link.href);
+  assert.equal(url.pathname, '/maps/dir/');
+  assert.equal(url.searchParams.get('api'), '1');
+  assert.equal(url.searchParams.get('origin'), '0,87.5');
+  assert.equal(url.searchParams.get('destination'), '0,-180');
+  assert.equal(url.searchParams.get('travelmode'), 'driving');
+  assert.equal(browser.timers.size, 0);
+  request.failure({ code: 3 });
+  app.render();
+  assert.equal(new URL(app.mapLink().href).searchParams.get('destination'), '26.6500000,87.6500000');
+  assert.equal(app.clickMap(), true);
+  app.search('ram'); app.render();
+  app.refresh(); app.render(); await settle(); app.render();
+  assert.equal(browser.requests.length, 1);
+  assert.equal(app.mapLink().children, 'Map direction');
+  app.unmount();
+});
+
+test('Show map falls back to the existing booking pin for every location failure', async () => {
+  const cases = [
+    { secure: false }, { supported: false }, { throws: true },
+    ...[1, 2, 3].map(code => ({ error: { code } })),
+    { expire: true },
+    ...[100.01, -1, NaN, Infinity, undefined, '10'].map(accuracy => ({ coords: { latitude: 27, longitude: 87, accuracy } })),
+    ...[{ latitude: 91, longitude: 87 }, { latitude: 27, longitude: -181 }, { latitude: NaN, longitude: 87 }, { latitude: null, longitude: 87 }].map(coords => ({ coords: { ...coords, accuracy: 5 } })),
+    { coords: null },
+  ];
+  for (const scenario of cases) {
+    const browser = mapBrowser(scenario);
+    const app = harness(async () => [booking], undefined, browser.globals);
+    app.render(); await settle(); app.render();
+    const request = browser.requests[0];
+    if (scenario.expire) browser.expire();
+    else if (request) {
+      if (scenario.error) request.failure(scenario.error);
+      else request.success({ coords: scenario.coords });
+    }
+    app.render();
+    assert.equal(app.mapLink().href, 'https://www.google.com/maps/search/?api=1&query=26.6500000%2C87.6500000');
+    assert.equal(app.mapLink().children, 'Show map');
+    assert.equal(browser.timers.size, 0);
+    request?.success({ coords: { latitude: 27, longitude: 87, accuracy: 5 } });
+    app.render();
+    assert.equal(app.mapLink().children, 'Show map');
+    assert.equal(app.clickMap(), true);
+    app.unmount();
+  }
+});
+
+test('location requests wait for authorization and discard results from an old session', async () => {
+  const browser = mapBrowser();
+  const app = harness(async () => [booking], undefined, browser.globals);
+  app.setAuth({ user: null, isAuthenticated: false, isLoading: true });
+  app.render();
+  app.setAuth({ user: { id: '1', role: 'USER' }, isAuthenticated: true, isLoading: false });
+  app.render();
+  assert.equal(browser.requests.length, 0);
+  app.setAuth({ user: { id: '8', role: 'TECHNICIAN' }, isAuthenticated: true, isLoading: false });
+  app.render(); await settle(); app.render();
+  assert.equal(browser.requests.length, 1);
+  app.setAuth({ user: { id: '9', role: 'TECHNICIAN' }, isAuthenticated: true, isLoading: false });
+  app.render(); await settle(); app.render();
+  assert.equal(browser.requests.length, 2);
+  browser.requests[0].success({ coords: { latitude: 27, longitude: 87, accuracy: 5 } });
+  app.render();
+  assert.equal(app.mapLink().children, 'Show map');
+  browser.requests[1].success({ coords: { latitude: 28, longitude: 88, accuracy: 5 } });
+  app.render();
+  assert.equal(new URL(app.mapLink().href).searchParams.get('origin'), '28,88');
+  app.setAuth({ user: { id: '10', role: 'TECHNICIAN' }, isAuthenticated: true, isLoading: false });
+  app.render(); await settle(); app.render();
+  assert.equal(app.mapLink().children, 'Show map');
+  assert.equal(browser.requests.length, 3);
+  app.unmount();
+  assert.equal(browser.timers.size, 0);
+});
+
+test('leaving cancels the location request and revisiting starts a fresh request', async () => {
+  const browser = mapBrowser();
+  const app = harness(async () => [booking], undefined, browser.globals);
+  app.render(); await settle(); app.render();
+  app.unmount();
+  assert.equal(browser.timers.size, 0);
+  browser.requests[0].success({ coords: { latitude: 27, longitude: 87, accuracy: 5 } });
+  app.render();
+  assert.equal(app.mapLink().children, 'Show map');
+  const revisit = harness(async () => [booking], undefined, browser.globals);
+  revisit.render(); await settle(); revisit.render();
+  assert.equal(browser.requests.length, 2);
+  assert.equal(revisit.mapLink().children, 'Show map');
+  browser.requests[1].success({ coords: { latitude: 28, longitude: 88, accuracy: 5 } });
+  revisit.render();
+  assert.equal(revisit.mapLink().children, 'Map direction');
+  revisit.unmount();
+});
 
 test('map links use each booking location and open separately without opening review', async () => {
   const app = harness(async () => [booking, { ...booking, id: 21, latitude: 0, longitude: -180 }]);

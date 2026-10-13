@@ -34,11 +34,53 @@ export function TechnicianBookings() {
   const [state, setState] = useState({ owner: null, revision: -1, bookings: [], loading: true, error: "" });
   const [decision, setDecision] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [location, setLocation] = useState(null);
   const dialogRef = useRef(null);
   const updateRequest = useRef(null);
   const selected = decision?.owner === owner ? decision : null;
+  const technicianLocation = location?.owner === owner ? location : null;
 
   useEffect(() => setSearch(""), [owner]);
+
+  useEffect(() => {
+    setLocation(null);
+    if (!owner || !window.isSecureContext || !navigator.geolocation) return;
+    let active = true;
+    let timer;
+    const finish = coords => {
+      if (!active) return;
+      active = false;
+      clearTimeout(timer);
+      if (coords) setLocation({ owner, latitude: coords.latitude, longitude: coords.longitude });
+    };
+
+    // Unlike the geolocation timeout, this also bounds an unanswered prompt.
+    timer = setTimeout(() => finish(null), 15000);
+    try {
+      navigator.geolocation.getCurrentPosition(position => {
+        try {
+          const coords = position?.coords;
+          if (coords && Number.isFinite(coords.latitude) && Math.abs(coords.latitude) <= 90
+            && Number.isFinite(coords.longitude) && Math.abs(coords.longitude) <= 180
+            && Number.isFinite(coords.accuracy) && coords.accuracy >= 0 && coords.accuracy <= 100) {
+            finish(coords);
+            return;
+          }
+        } catch {
+          // Unexpected location data must still allow viewing the booking pin.
+        }
+        finish(null);
+      }, () => finish(null), {
+        enableHighAccuracy: true, maximumAge: 0, timeout: 10000,
+      });
+    } catch {
+      finish(null);
+    }
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [owner]);
 
   useEffect(() => {
     setDecision(null);
@@ -167,6 +209,13 @@ export function TechnicianBookings() {
                 const mapUrl = latitude !== "Unavailable" && longitude !== "Unavailable"
                   ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(latitude.trim() + "," + longitude.trim())
                   : null;
+                const directionsUrl = mapUrl && technicianLocation
+                  ? "https://www.google.com/maps/dir/?" + new URLSearchParams({
+                    api: "1", origin: `${technicianLocation.latitude},${technicianLocation.longitude}`,
+                    destination: `${latitude.trim()},${longitude.trim()}`, travelmode: "driving",
+                  })
+                  : null;
+                const mapLabel = directionsUrl ? "Map direction" : "Show map";
                 return (
                 <tr key={booking.id} onClick={() => openBooking(booking)} className="cursor-pointer align-top hover:bg-emerald-50/70 dark:hover:bg-emerald-950/20">
                   <th scope="row" className="px-4 py-4 font-bold whitespace-nowrap"><button type="button" aria-label={`Review booking #${booking.id}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); openBooking(booking); }} className="rounded text-emerald-700 dark:text-emerald-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Booking #{booking.id}</button></th>
@@ -180,7 +229,7 @@ export function TechnicianBookings() {
                     <div>Longitude: {longitude}</div>
                     <div className="mt-3" onClick={event => event.stopPropagation()}>
                       {mapUrl ? (
-                        <a href={mapUrl} target="_blank" rel="noopener noreferrer" aria-label={`Show map for booking #${booking.id} (opens in a new tab)`} className="inline-flex rounded-xl bg-emerald-50 dark:bg-emerald-950 px-4 py-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">Show map</a>
+                        <a href={directionsUrl || mapUrl} target="_blank" rel="noopener noreferrer" aria-label={`${mapLabel} for booking #${booking.id} (opens in a new tab)`} className="inline-flex rounded-xl bg-emerald-50 dark:bg-emerald-950 px-4 py-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{mapLabel}</a>
                       ) : (
                         <>
                           <button type="button" disabled aria-describedby={`booking-location-unavailable-${booking.id}`} className="rounded-xl bg-emerald-50 dark:bg-emerald-950 px-4 py-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 opacity-50 cursor-not-allowed">Show map</button>
