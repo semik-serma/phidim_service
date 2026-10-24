@@ -60,6 +60,7 @@ export function TopNavbar({
       const now = new Date();
       setTime(
         now.toLocaleTimeString("en-US", {
+          timeZone: "Asia/Kathmandu",
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
@@ -68,6 +69,7 @@ export function TopNavbar({
       );
       setDateStr(
         now.toLocaleDateString("en-US", {
+          timeZone: "Asia/Kathmandu",
           weekday: "short",
           month: "short",
           day: "numeric",

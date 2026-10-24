@@ -1,3 +1,27 @@
+import NepaliDateConverter from "nepali-date-converter";
+
+// Support both the package's CommonJS entry and its browser ESM build.
+const NepaliDate = NepaliDateConverter.default ?? NepaliDateConverter;
+
+export const NEPAL_TIME_ZONE = "Asia/Kathmandu";
+
+const nepalDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: NEPAL_TIME_ZONE,
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function getNepalDateTimeParts(date) {
+  return Object.fromEntries(nepalDateTimeFormatter.formatToParts(date)
+    .filter(({ type }) => type !== "literal")
+    .map(({ type, value }) => [type, Number(value)]));
+}
+
 export function toNepaliDigits(num) {
   const nepaliMap = {
     "0": "\u0966",
@@ -16,10 +40,10 @@ export function toNepaliDigits(num) {
 export function padZero(num) {
   return num < 10 ? `0${num}` : `${num}`;
 }
-export function getFormattedNepaliTime(date) {
-  let hours = date.getHours();
-  const minutes = padZero(date.getMinutes());
-  const seconds = padZero(date.getSeconds());
+export function getFormattedNepaliTime(date = new Date()) {
+  const { hour: hours, minute, second } = getNepalDateTimeParts(date);
+  const minutes = padZero(minute);
+  const seconds = padZero(second);
   let period = "\u092C\u093F\u0939\u093E\u0928";
   if (hours >= 12 && hours < 16) {
     period = "\u0926\u093F\u0909\u0901\u0938\u094B";
@@ -35,7 +59,7 @@ export function getFormattedNepaliTime(date) {
   const nepSeconds = toNepaliDigits(seconds);
   return `${nepHours} : ${nepMinutes} : ${nepSeconds} ${period}`;
 }
-export function getFormattedBikramSambatDate() {
+export function getFormattedBikramSambatDate(date = new Date()) {
   const nepaliDays = ["\u0906\u0907\u0924\u092C\u093E\u0930", "\u0938\u094B\u092E\u092C\u093E\u0930", "\u092E\u0919\u094D\u0917\u0932\u092C\u093E\u0930", "\u092C\u0941\u0927\u092C\u093E\u0930", "\u092C\u093F\u0939\u0940\u092C\u093E\u0930", "\u0936\u0941\u0915\u094D\u0930\u092C\u093E\u0930", "\u0936\u0928\u093F\u092C\u093E\u0930"];
   const nepaliMonths = [
     "\u0935\u0948\u0936\u093E\u0916",
@@ -51,11 +75,13 @@ export function getFormattedBikramSambatDate() {
     "\u092B\u093E\u0917\u0941\u0928",
     "\u091A\u0948\u0924"
   ];
-  const now = /* @__PURE__ */ new Date();
-  const dayName = nepaliDays[now.getDay()];
-  const bsYear = now.getFullYear() + 57;
-  const monthIndex = (now.getMonth() + 3) % 12;
-  const monthName = nepaliMonths[monthIndex];
-  const dayNum = (now.getDate() + 15) % 30 || 1;
+  const { year, month, day } = getNepalDateTimeParts(date);
+  // The converter reads local Gregorian fields. Supply Kathmandu's calendar
+  // date explicitly so the visitor's timezone cannot change the BS date.
+  const bsDate = new NepaliDate(new Date(year, month - 1, day, 12));
+  const dayName = nepaliDays[bsDate.getDay()];
+  const bsYear = bsDate.getYear();
+  const monthName = nepaliMonths[bsDate.getMonth()];
+  const dayNum = bsDate.getDate();
   return `\u0935\u093F \u0938\u0902 ${toNepaliDigits(bsYear)} ${monthName} ${toNepaliDigits(dayNum)} ${dayName}`;
 }

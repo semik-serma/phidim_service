@@ -694,7 +694,7 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
                       <div className="flex flex-col items-center gap-3">
                         <Avatar technician={technician} />
                         <h3 className="mt-1 text-lg font-semibold">
-                          {technician.name},{technician.id}
+                          {technician.name}
                         </h3>
                         <p className="text-center text-sm text-neutral-400">
                           {service.name}

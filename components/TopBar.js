@@ -17,7 +17,7 @@ export const TopBar = () => {
     const updateDateTime = () => {
       const now = new Date();
       setTimeStr(getFormattedNepaliTime(now));
-      setDateStr(getFormattedBikramSambatDate());
+      setDateStr(getFormattedBikramSambatDate(now));
     };
     updateDateTime();
     const interval = setInterval(updateDateTime, 1e3);
@@ -69,9 +69,9 @@ export const TopBar = () => {
         <div className="flex items-center justify-center md:justify-end gap-3 text-gray-900 font-bold mt-1 md:mt-0">
           <div className="flex items-center gap-2 bg-white/35 backdrop-blur-xs px-3 py-1 rounded-full text-xs sm:text-sm font-bold">
             <span className="text-gray-950 font-black">नेपाली समय</span>
-            <span className="font-extrabold text-black">{timeStr || "०७ : २२ : १८ बिहान"}</span>
+            <span className="font-extrabold text-black">{timeStr || "—"}</span>
             <span className="mx-1 text-gray-800">|</span>
-            <span className="font-extrabold text-black">{dateStr || "वि सं २०८३ श्रावण १७ आइतबार"}</span>
+            <span className="font-extrabold text-black">{dateStr || "—"}</span>
           </div>
 
           {/* Nepal Flag Emblem */}
