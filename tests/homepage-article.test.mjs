@@ -18,7 +18,7 @@ test('homepage displays real article states without cached dummy content', async
     if (name === 'react') return {...React, useEffect: () => {}, useRef: () => ({current: null}), useState: initial => [Object.hasOwn(values, cursor) ? values[cursor++] : (cursor++, initial), () => {}]};
     if (name === 'next/navigation') return {useRouter: () => ({})};
     if (name === '@/context/AuthContext') return {useAuth: () => ({user: null, isAuthenticated: false})};
-    if (name === 'lucide-react') return new Proxy({}, {get: () => () => null});
+    if (name === 'lucide-react' || name === 'react-icons/fa6') return new Proxy({}, {get: () => () => null});
     if (name.startsWith('@/services/') || name === '@/lib/backendWarning') return {};
     throw new Error('Unexpected import: ' + name);
   }});

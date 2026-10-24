@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { FaWandMagicSparkles } from "react-icons/fa6";
 import {
   ThumbsUp,
   ThumbsDown,
@@ -191,7 +192,7 @@ export function HomepageCommentSection() {
       setShowLoginPrompt(false);
       setShowComments(true);
       try { sessionStorage.removeItem("phidim_pending_comment_draft"); } catch {}
-      triggerToast("Your comment has been posted to the discussion! 🎉");
+      triggerToast("Your comment has been posted to the discussion!");
     } catch (error) {
       if (!controller.signal.aborted) setCommentError(error.message || "Unable to post your comment. Please try again.");
     } finally {
@@ -232,7 +233,7 @@ export function HomepageCommentSection() {
         : c));
       setReplyInputText("");
       setActiveReplyId(null);
-      triggerToast("Your reply has been posted! 💬");
+      triggerToast("Your reply has been posted!");
     } catch (error) {
       if (!controller.signal.aborted) setReplyError(error.message || "Unable to post your reply. Please try again.");
     } finally {
@@ -324,7 +325,7 @@ export function HomepageCommentSection() {
       navigator.clipboard.writeText(shareText);
       setCopiedId(item.id);
       setTimeout(() => setCopiedId(null), 2000);
-      triggerToast("Post copied to clipboard! 📋");
+      triggerToast("Post copied to clipboard!");
     }
   };
 
@@ -720,7 +721,8 @@ export function HomepageCommentSection() {
                 ) : postComments.length > 1 && visibleCount > 1 ? (
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                      Showing all {postComments.length} comments ✨
+                      Showing all {postComments.length} comments{" "}
+                      <FaWandMagicSparkles aria-hidden="true" className="inline-block w-3 h-3 align-middle" />
                     </span>
                     <button
                       onClick={handleShowLess}

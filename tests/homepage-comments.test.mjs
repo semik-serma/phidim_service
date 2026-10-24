@@ -29,7 +29,7 @@ function harness({authenticated = true, load = async () => [], post, reply} = {}
       };
       if (name === 'next/navigation') return {useRouter: () => ({push: () => {}})};
       if (name === '@/context/AuthContext') return {useAuth: () => ({user: authenticated ? {id: '23', displayName: 'Sam'} : null, isAuthenticated: authenticated})};
-      if (name === 'lucide-react') return new Proxy({}, {get: () => () => null});
+      if (name === 'lucide-react' || name === 'react-icons/fa6') return new Proxy({}, {get: () => () => null});
       if (name === '@/services/articleService') return {fetchNewestDjangoArticle: async () => ({id: 17, title: 'Article', content: 'Body'})};
       if (name === '@/services/commentService') return {fetchDjangoComments: load, postDjangoComment: post, postDjangoReply: reply};
       if (name === '@/lib/backendWarning') return {BACKEND_READY: false};

@@ -1,5 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import {
+  FaScrewdriverWrench,
+  FaGlobe,
+  FaBuilding,
+  FaBolt,
+  FaSatelliteDish,
+  FaCertificate,
+  FaUserGear,
+  FaHandshake,
+  FaLaptopCode,
+  FaPhone,
+} from "react-icons/fa6";
+import {
   Zap,
   Camera,
   Monitor,
@@ -320,7 +332,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
               <span>On-Demand Technical Solutions</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              🛠️ Our Services | हाम्रो सेवाहरू
+              <FaScrewdriverWrench aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              Our Services | हाम्रो सेवाहरू
             </h2>
           </div>
 
@@ -393,7 +406,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
               <span>High-Speed Infrastructure</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              🌐 LAN Networking & Optical Fiber Splicing
+              <FaGlobe aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              LAN Networking & Optical Fiber Splicing
             </h2>
           </div>
 
@@ -408,7 +422,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <h3 className="text-sm font-extrabold text-cyan-300">
-              🏢 Office & Hotel Structured Cabling
+              <FaBuilding aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              Office & Hotel Structured Cabling
             </h3>
             <p className="text-xs text-gray-300 leading-relaxed">
               Cat6 structured copper network cabling, patch panel punch-down,
@@ -419,7 +434,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <h3 className="text-sm font-extrabold text-cyan-300">
-              ⚡ Fiber Splicing & OTDR Test
+              <FaBolt aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              Fiber Splicing & OTDR Test
             </h3>
             <p className="text-xs text-gray-300 leading-relaxed">
               Precision fusion fiber splicing, loss testing, joint closure
@@ -429,7 +445,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <h3 className="text-sm font-extrabold text-cyan-300">
-              📡 DishHome DTH Packages
+              <FaSatelliteDish aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              DishHome DTH Packages
             </h3>
             <p className="text-xs text-gray-300 leading-relaxed">
               Get 100 Mbps, 200 Mbps & 300 Mbps DishHome DTH connected at your
@@ -456,7 +473,7 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
-              ⚡
+              <FaBolt aria-hidden="true" className="w-4 h-4" />
             </div>
             <h3 className="font-extrabold text-white text-sm">
               30-Min On-Site Dispatch
@@ -469,7 +486,7 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
-              💯
+              <FaCertificate aria-hidden="true" className="w-4 h-4" />
             </div>
             <h3 className="font-extrabold text-white text-sm">
               Genuine Spare Parts
@@ -482,7 +499,7 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
-              👨‍🔧
+              <FaUserGear aria-hidden="true" className="w-4 h-4" />
             </div>
             <h3 className="font-extrabold text-white text-sm">
               Certified Local Engineers
@@ -495,7 +512,7 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
-              🤝
+              <FaHandshake aria-hidden="true" className="w-4 h-4" />
             </div>
             <h3 className="font-extrabold text-white text-sm">
               Transparent Pricing
@@ -518,7 +535,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              👨‍💻 About Phidim Service
+              <FaLaptopCode aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              About Phidim Service
             </h2>
 
             <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-normal">
@@ -583,7 +601,8 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
               <span>Phidim Municipality Coverage</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              📞 Contact Us & Support
+              <FaPhone aria-hidden="true" className="inline-block w-[1em] h-[1em] align-middle mr-2" />
+              Contact Us & Support
             </h2>
           </div>
 
