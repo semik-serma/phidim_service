@@ -345,11 +345,11 @@ export const OurServicesPage = ({
             </div>
 
             <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-              🔧 Our Services | हाम्रो सेवाहरू
+              <Wrench aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Our Services | हाम्रो सेवाहरू
             </h1>
 
             <p className="text-sm sm:text-base text-green-300 font-bold">
-              Fast, Reliable, and Professional Doorstep Assistance in Phidim & Panchthar! 🏠⚡
+              Fast, Reliable, and Professional Doorstep Assistance in Phidim & Panchthar! <Home aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" />
             </p>
 
             <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-normal">

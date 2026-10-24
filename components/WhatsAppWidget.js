@@ -132,7 +132,7 @@ export const WhatsAppWidget = () => {
   }
       <button
     onClick={() => openWhatsApp()}
-    className="bg-[#2a9d8f] hover:bg-[#218377] text-white font-bold py-2.5 px-4 rounded-full shadow-2xl flex items-center gap-2.5 transition-all duration-200 transform hover:scale-105 border border-white/20 cursor-pointer"
+    className="bg-[#76C457] hover:bg-[#218377] text-white font-bold py-2.5 px-4 rounded-full shadow-2xl flex items-center gap-2.5 transition-all duration-200 transform hover:scale-105 border border-white/20 cursor-pointer"
     title="Open WhatsApp Help (+977 986-2772457)"
   >
         <MessageCircle className="w-5 h-5 fill-current" />

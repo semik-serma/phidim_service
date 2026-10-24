@@ -23,7 +23,10 @@ import {
   Monitor,
   Printer,
   Camera,
-  Check
+  Check,
+  Coins,
+  LockKeyhole,
+  Wifi
 } from "lucide-react";
 import { DishHomeSection } from "./DishHomeSection";
 export const LanNetworkingPage = ({
@@ -59,13 +62,13 @@ export const LanNetworkingPage = ({
     { title: "Small & Medium Businesses", icon: Briefcase, text: "Reliable multi-pc operational network" }
   ];
   const benefits = [
-    "\u26A1 Fast data transfer between devices (up to 1 Gbps / 10 Gbps)",
-    "\u{1F4C1} Easy file and printer sharing across all workstations",
-    "\u{1F510} More secure than public networks with localized firewalls",
-    "\u{1F4F9} Easy CCTV monitoring & instant remote live feeds",
-    "\u{1F4BB} Connect multiple computers efficiently without speed drops",
-    "\u{1F4B0} Cost-effective networking solution for long-term growth",
-    "\u{1F4E1} Stable and reliable connection unaffected by weather interference"
+    { text: "Fast data transfer between devices (up to 1 Gbps / 10 Gbps)", icon: Zap },
+    { text: "Easy file and printer sharing across all workstations", icon: FolderTree },
+    { text: "More secure than public networks with localized firewalls", icon: LockKeyhole },
+    { text: "Easy CCTV monitoring & instant remote live feeds", icon: Camera },
+    { text: "Connect multiple computers efficiently without speed drops", icon: Monitor },
+    { text: "Cost-effective networking solution for long-term growth", icon: Coins },
+    { text: "Stable and reliable connection unaffected by weather interference", icon: Wifi }
   ];
   const neplishServices = [
     "\u0928\u092F\u093E\u0901 LAN Network Setup",
@@ -97,7 +100,7 @@ export const LanNetworkingPage = ({
           <div className="relative z-10 max-w-3xl space-y-4">
 
             <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
-              🌐 LAN Networking Services <span className="text-cyan-400 font-extrabold">(Local Area Network)</span>
+              <Network aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> LAN Networking Services <span className="text-cyan-400 font-extrabold">(Local Area Network)</span>
             </h1>
 
             <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-medium">
@@ -138,7 +141,7 @@ export const LanNetworkingPage = ({
                 Professional Engineering Solutions
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                <span>🛠️ Our LAN Networking Services</span>
+                <span><Wrench aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Our LAN Networking Services</span>
               </h2>
             </div>
             <span className="text-xs font-bold text-gray-500 bg-gray-200 px-3 py-1 rounded-full self-start sm:self-auto">
@@ -183,13 +186,13 @@ export const LanNetworkingPage = ({
               नेपाली भाषामा सेवा विवरण
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              💬 LAN Networking Service (नेपालीमा)
+              <MessageCircle aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> LAN Networking Service (नेपालीमा)
             </h2>
           </div>
 
           <div className="space-y-4 text-xs sm:text-sm text-gray-200 font-medium leading-relaxed">
             <p className="bg-white/5 p-4 rounded-2xl border border-white/10">
-              🌐 <strong className="text-cyan-300">LAN (Local Area Network)</strong> भनेको घर, Office, School, Shop वा Business भित्र भएका Computer, Printer, CCTV Camera, Server र अन्य Devices लाई एउटै Network मा जोड्ने प्रणाली हो।
+              <Network aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> <strong className="text-cyan-300">LAN (Local Area Network)</strong> भनेको घर, Office, School, Shop वा Business भित्र भएका Computer, Printer, CCTV Camera, Server र अन्य Devices लाई एउटै Network मा जोड्ने प्रणाली हो।
             </p>
 
             <div>
@@ -200,14 +203,14 @@ export const LanNetworkingPage = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                 {neplishServices.map((item, idx) => <div key={idx} className="bg-white/5 hover:bg-white/10 p-2.5 rounded-xl border border-white/10 flex items-center gap-2 text-xs font-bold text-cyan-100">
-                    <span className="text-green-400">✅</span>
+                    <span className="text-green-400"><CheckCircle2 aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /></span>
                     <span>{item}</span>
                   </div>)}
               </div>
             </div>
 
             <p className="bg-green-500/10 border border-green-500/30 text-green-300 p-4 rounded-2xl font-bold text-xs sm:text-sm leading-relaxed">
-              Phidim Service ले Professional LAN Networking Service प्रदान गर्दछ ताकि तपाईंको घर वा व्यवसायको Network छिटो, सुरक्षित र भरपर्दो रूपमा सञ्चालन होस्। 🌐⚡
+              Phidim Service ले Professional LAN Networking Service प्रदान गर्दछ ताकि तपाईंको घर वा व्यवसायको Network छिटो, सुरक्षित र भरपर्दो रूपमा सञ्चालन होस्। <Network aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" />
             </p>
           </div>
         </section>
@@ -221,7 +224,7 @@ export const LanNetworkingPage = ({
               Versatile Commercial & Domestic Deployment
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              🏢 Suitable For (कुन-कुन क्षेत्रका लागि उपयुक्त?)
+              <Building2 aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Suitable For (कुन-कुन क्षेत्रका लागि उपयुक्त?)
             </h2>
           </div>
 
@@ -250,14 +253,14 @@ export const LanNetworkingPage = ({
               Why Upgrade Your Infrastructure?
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              ✅ Benefits of LAN Networking
+              <CheckCircle2 aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Benefits of LAN Networking
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {benefits.map((b, idx) => <div key={idx} className="bg-white/5 border border-white/10 p-3.5 rounded-2xl flex items-start gap-3 text-xs sm:text-sm font-bold text-gray-100">
-                <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                <span>{b}</span>
+            {benefits.map(({ text, icon: Icon }, idx) => <div key={idx} className="bg-white/5 border border-white/10 p-3.5 rounded-2xl flex items-start gap-3 text-xs sm:text-sm font-bold text-gray-100">
+                <Icon aria-hidden="true" className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span>{text}</span>
               </div>)}
           </div>
         </section>

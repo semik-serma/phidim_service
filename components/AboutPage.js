@@ -19,7 +19,13 @@ import {
   Check,
   PhoneCall,
   ChevronRight,
-  Home
+  Home,
+  BookOpen,
+  Cable,
+  ClipboardList,
+  Handshake,
+  Network,
+  Settings
 } from "lucide-react";
 export const AboutPage = ({
   onNavigateHome,
@@ -85,18 +91,18 @@ export const AboutPage = ({
     "Plumbing Trouble Shooting"
   ];
   const technicalEquipmentList = [
-    "⚡ Digital Insulation & Earth Testers",
-    "📹 IP & HD CCTV Cable Analyzers",
-    "💻 Hardware Diagnostic & OS Workbenches",
-    "📡 Fusion Splicers & Optical Power Meters",
-    "❄️ High-Pressure Jet Wash Pumps",
-    "🔌 Certified R32 / R410A Refrigerant Gauges",
-    "⚙️ Multi-Meter Circuit Probes",
-    "🚰 Hydrostatic Pipe Pressure Testers",
-    "🛡️ Genuine Certified Replacement Parts",
-    "🌐 Managed Switch & Router Terminals",
-    "🔩 Heavy Duty Copper Flaring Tools",
-    "🏠 On-Site Technician Emergency Kits"
+    { text: "Digital Insulation & Earth Testers", icon: Zap },
+    { text: "IP & HD CCTV Cable Analyzers", icon: Camera },
+    { text: "Hardware Diagnostic & OS Workbenches", icon: Monitor },
+    { text: "Fusion Splicers & Optical Power Meters", icon: Wifi },
+    { text: "High-Pressure Jet Wash Pumps", icon: Wind },
+    { text: "Certified R32 / R410A Refrigerant Gauges", icon: Cable },
+    { text: "Multi-Meter Circuit Probes", icon: Settings },
+    { text: "Hydrostatic Pipe Pressure Testers", icon: Droplet },
+    { text: "Genuine Certified Replacement Parts", icon: ShieldCheck },
+    { text: "Managed Switch & Router Terminals", icon: Network },
+    { text: "Heavy Duty Copper Flaring Tools", icon: Wrench },
+    { text: "On-Site Technician Emergency Kits", icon: Home }
   ];
   const whyChooseUsList = [
     { title: "Experienced Technicians", desc: "Skilled certified field experts for all home & IT jobs." },
@@ -148,11 +154,11 @@ export const AboutPage = ({
           
           <div className="relative z-10 max-w-3xl mx-auto space-y-4 flex flex-col items-center text-center">
             <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight text-center">
-              🔧 Welcome to Phidim Service
+              <Wrench aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Welcome to Phidim Service
             </h1>
 
             <p className="text-sm sm:text-base text-green-300 font-bold text-center">
-              &quot;One Stop Solution for Home, Office & Business Services!&quot; 🏠⚡💻
+              &quot;One Stop Solution for Home, Office & Business Services!&quot; <Home aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><Monitor aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" />
             </p>
 
             <p className="text-xs sm:text-sm text-gray-300 leading-relaxed font-normal text-center max-w-2xl">
@@ -192,31 +198,31 @@ export const AboutPage = ({
     onClick={() => setActiveTab("ALL")}
     className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${activeTab === "ALL" ? "bg-slate-900 text-white shadow-xs" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
   >
-            📋 Complete Profile
+            <ClipboardList aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Complete Profile
           </button>
           <button
     onClick={() => setActiveTab("SERVICES")}
     className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${activeTab === "SERVICES" ? "bg-slate-900 text-white shadow-xs" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
   >
-            ⚡ Technical Services
+            <Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Technical Services
           </button>
           <button
             onClick={() => setActiveTab("CAPABILITIES")}
             className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${activeTab === "CAPABILITIES" ? "bg-slate-900 text-white shadow-xs" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
           >
-            🛠️ Service Capabilities & Standards
+            <Wrench aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Service Capabilities & Standards
           </button>
           <button
     onClick={() => setActiveTab("WHY_US")}
     className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${activeTab === "WHY_US" ? "bg-slate-900 text-white shadow-xs" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
   >
-            🤝 Why Choose Us
+            <Handshake aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Why Choose Us
           </button>
           <button
     onClick={() => setActiveTab("DEVELOPER")}
     className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-all ${activeTab === "DEVELOPER" ? "bg-slate-900 text-white shadow-xs" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
   >
-            👨‍💻 About Developer
+            <Code2 aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> About Developer
           </button>
         </div>
 
@@ -249,7 +255,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center">
                     <Zap className="w-4 h-4" />
                   </div>
-                  <span>⚡ Electrical Services (बिद्युत सम्बन्धी)</span>
+                  <span>Electrical Services (बिद्युत सम्बन्धी)</span>
                 </div>
                 <ul className="space-y-2 text-xs text-gray-700 font-medium">
                   {electricalServices.map((item, i) => <li key={i} className="flex items-start gap-2">
@@ -267,7 +273,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-700 flex items-center justify-center">
                     <Camera className="w-4 h-4" />
                   </div>
-                  <span>📹 CCTV & Security Services</span>
+                  <span>CCTV & Security Services</span>
                 </div>
                 <ul className="space-y-2 text-xs text-gray-700 font-medium">
                   {cctvServices.map((item, i) => <li key={i} className="flex items-start gap-2">
@@ -285,7 +291,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center">
                     <Monitor className="w-4 h-4" />
                   </div>
-                  <span>💻 Computer & IT Services</span>
+                  <span>Computer & IT Services</span>
                 </div>
                 <ul className="space-y-2 text-xs text-gray-700 font-medium">
                   {computerServices.map((item, i) => <li key={i} className="flex items-start gap-2">
@@ -303,7 +309,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-700 flex items-center justify-center">
                     <Wifi className="w-4 h-4" />
                   </div>
-                  <span>📡 Internet & TV Services</span>
+                  <span>Internet & TV Services</span>
                 </div>
                 <ul className="space-y-2 text-xs text-gray-700 font-medium">
                   {internetTvServices.map((item, i) => <li key={i} className="flex items-start gap-2">
@@ -321,7 +327,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-700 flex items-center justify-center">
                     <Wind className="w-4 h-4" />
                   </div>
-                  <span>❄️ Air Conditioner Services</span>
+                  <span>Air Conditioner Services</span>
                 </div>
                 <ul className="space-y-2 text-xs text-gray-700 font-medium">
                   {acServices.map((item, i) => <li key={i} className="flex items-start gap-2">
@@ -339,7 +345,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-700 flex items-center justify-center">
                     <Tv className="w-4 h-4" />
                   </div>
-                  <span>📺 LED TV Services</span>
+                  <span>LED TV Services</span>
                 </div>
                 <ul className="space-y-2 text-xs text-gray-700 font-medium">
                   {tvServices.map((item, i) => <li key={i} className="flex items-start gap-2">
@@ -357,7 +363,7 @@ export const AboutPage = ({
                   <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-700 flex items-center justify-center">
                     <Droplet className="w-4 h-4" />
                   </div>
-                  <span>🚰 Plumbing Services</span>
+                  <span>Plumbing Services</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
                   {plumbingServices.map((item, i) => <div key={i} className="flex items-start gap-2 text-xs text-gray-700 font-medium">
@@ -378,7 +384,7 @@ export const AboutPage = ({
               <div>
                 <h2 className="text-lg font-black text-gray-900 uppercase tracking-wider flex items-center gap-2.5">
                   <Wrench className="w-5 h-5 text-green-600" />
-                  <span>🛠️ Service Equipment & Genuine Repair Standards</span>
+                  <span>Service Equipment & Genuine Repair Standards</span>
                 </h2>
                 <p className="text-xs text-gray-600 mt-1">
                   Our certified field technicians use calibrated industrial diagnostics, optical fusion splicers, and 100% genuine replacement parts for all repair jobs.
@@ -397,13 +403,13 @@ export const AboutPage = ({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {technicalEquipmentList.map((item, i) => <div key={i} className="bg-white border border-green-100 hover:border-green-300 rounded-xl p-3.5 font-bold text-gray-800 text-xs flex items-center justify-center text-center shadow-2xs hover:shadow-xs transition-all">
-                  <span>{item}</span>
+              {technicalEquipmentList.map(({ text, icon: Icon }, i) => <div key={i} className="bg-white border border-green-100 hover:border-green-300 rounded-xl p-3.5 font-bold text-gray-800 text-xs flex items-center justify-center text-center shadow-2xs hover:shadow-xs transition-all">
+                  <span className="flex flex-col items-center gap-2"><Icon aria-hidden="true" size={20} className="shrink-0 text-green-600" />{text}</span>
                 </div>)}
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-green-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <span className="font-extrabold text-green-950">🛡️ 100% Certified Workmanship Guarantee across Panchthar:</span>
+              <span className="font-extrabold text-green-950"><ShieldCheck aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> 100% Certified Workmanship Guarantee across Panchthar:</span>
               <button
                 onClick={onNavigateContact}
                 className="text-green-700 font-black hover:underline underline-offset-2 flex items-center gap-1 text-sm cursor-pointer"
@@ -421,7 +427,7 @@ export const AboutPage = ({
             <div className="border-b border-gray-200 pb-4">
               <h2 className="text-lg font-black text-gray-900 uppercase tracking-wider flex items-center gap-2.5">
                 <ShieldCheck className="w-5 h-5 text-green-600" />
-                <span>🤝 Why Choose Phidim Service?</span>
+                <span>Why Choose Phidim Service?</span>
               </h2>
               <p className="text-xs text-gray-600 mt-1">
                 Our promise to every household and business in Panchthar.
@@ -464,7 +470,7 @@ export const AboutPage = ({
               </div>
 
               <div className="text-left sm:text-right text-xs text-gray-300">
-                <p className="font-bold text-white">Developed with ❤️ by Semik Serma</p>
+                <p className="font-bold text-white">Developed with <Heart aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> by Semik Serma</p>
                 <p className="text-[11px] text-green-400 font-extrabold uppercase tracking-wider">Phidim Service</p>
               </div>
             </div>
@@ -497,7 +503,7 @@ export const AboutPage = ({
                 <span>Continuous Learning & System Engineering</span>
               </div>
               <p className="text-xs text-gray-300 font-medium leading-relaxed">
-                📚 Currently learning advanced <strong className="text-white">Software Engineering, System Design, Cyber Security, and Artificial Intelligence</strong> to build even better, faster, and secure digital solutions.
+                <BookOpen aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Currently learning advanced <strong className="text-white">Software Engineering, System Design, Cyber Security, and Artificial Intelligence</strong> to build even better, faster, and secure digital solutions.
               </p>
             </div>
           </div>}
@@ -509,13 +515,13 @@ export const AboutPage = ({
           <div className="space-y-2 max-w-xl">
             <h3 className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2.5">
               <PhoneCall className="w-5 h-5 text-green-400" />
-              <span>📍 Contact Us in Phidim, Panchthar</span>
+              <span>Contact Us in Phidim, Panchthar</span>
             </h3>
             <p className="text-xs text-gray-300 leading-relaxed font-medium">
               Phidim Service for trusted home services, electrical repairs, CCTV installations, and fiber net support.
             </p>
             <p className="text-xs font-extrabold text-green-400">
-              &quot;Professional Service, Genuine Parts & Workmanship, Happy Customers!&quot; 💙🙏
+              &quot;Professional Service, Genuine Parts & Workmanship, Happy Customers!&quot; <Heart aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><Handshake aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" />
             </p>
           </div>
 

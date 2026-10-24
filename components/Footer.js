@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Phone, Mail, MapPin, ShieldCheck, ExternalLink } from "lucide-react";
+import {
+  Phone,
+  Mail,
+  MapPin,
+  ShieldCheck,
+  ExternalLink,
+  Wrench,
+  Zap
+} from "lucide-react";
 import { FaYoutube, FaFacebookF, FaLinkedinIn } from "react-icons/fa6";
 import { RopePullingDevBadge } from "./RopePullingDevBadge";
 
@@ -96,12 +104,12 @@ export const Footer = ({
             <ul className="space-y-2 text-xs">
               <li>
                 <Link href="/battery-runtime-calculator" className="hover:text-green-400 transition-colors text-green-400 font-bold block">
-                  ⚡ Battery Runtime Calculator
+                  <Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Battery Runtime Calculator
                 </Link>
               </li>
               <li>
                 <Link href="/nepal-electricity-bill-calculator" className="hover:text-green-400 transition-colors text-emerald-400 font-bold block">
-                  🇳🇵 Nepal Electricity Bill Calculator
+                  <MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Nepal Electricity Bill Calculator
                 </Link>
               </li>
               <li>
@@ -111,17 +119,17 @@ export const Footer = ({
               </li>
               <li>
                 <Link href="/services" className="hover:text-green-400 transition-colors text-yellow-400 font-bold block">
-                  🛠️ All Phidim Services
+                  <Wrench aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> All Phidim Services
                 </Link>
               </li>
               <li>
                 <Link href="/phidim" className="hover:text-green-400 transition-colors text-emerald-400 font-bold block">
-                  📍 Services in Phidim
+                  <MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Services in Phidim
                 </Link>
               </li>
               <li>
                 <Link href="/panchthar" className="hover:text-green-400 transition-colors text-indigo-400 font-bold block">
-                  📍 Services in Panchthar
+                  <MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Services in Panchthar
                 </Link>
               </li>
               <li>

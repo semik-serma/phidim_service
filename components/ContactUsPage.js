@@ -9,7 +9,13 @@ import {
   Building2,
   Navigation,
   Smartphone,
-  ExternalLink
+  ExternalLink,
+  Camera,
+  Home,
+  Monitor,
+  Network,
+  Wifi,
+  Zap
 } from "lucide-react";
 export const ContactUsPage = ({
   onNavigateHome,
@@ -54,12 +60,12 @@ export const ContactUsPage = ({
     }
   ];
   const quickServices = [
-    { name: "\u26A1 Electrical Repair & Wiring", msg: "Hello Phidim Service! I need an electrician for household wiring or repair work." },
-    { name: "\u{1F4F9} CCTV Camera & NVR System", msg: "Hello Phidim Service! I need a CCTV camera quotation and site survey." },
-    { name: "\u{1F4E1} DishHome DTH Connection", msg: "Hello Phidim Service! I want to install a new DishHome DTH connection." },
-    { name: "\u{1F310} LAN Networking & Cabling", msg: "Hello Phidim Service! I need LAN network cable setup for my office / home." },
-    { name: "\u{1F5A5}\uFE0F Computer & Laptop Repair", msg: "Hello Phidim Service! I need computer motherboard / OS software repair." },
-    { name: "\u{1F3E0} Smart Home & Power Backup", msg: "Hello Phidim Service! I need inverter / solar battery setup assistance." }
+    { icon: Zap, name: "Electrical Repair & Wiring", msg: "Hello Phidim Service! I need an electrician for household wiring or repair work." },
+    { icon: Camera, name: "CCTV Camera & NVR System", msg: "Hello Phidim Service! I need a CCTV camera quotation and site survey." },
+    { icon: Wifi, name: "DishHome DTH Connection", msg: "Hello Phidim Service! I want to install a new DishHome DTH connection." },
+    { icon: Network, name: "LAN Networking & Cabling", msg: "Hello Phidim Service! I need LAN network cable setup for my office / home." },
+    { icon: Monitor, name: "Computer & Laptop Repair", msg: "Hello Phidim Service! I need computer motherboard / OS software repair." },
+    { icon: Home, name: "Smart Home & Power Backup", msg: "Hello Phidim Service! I need inverter / solar battery setup assistance." }
   ];
   const coverageAreas = [
     { ward: "Phidim Ward 1", areas: "Main Bazaar, Buspark, Hospital Road, Stadium Area" },
@@ -168,7 +174,7 @@ export const ContactUsPage = ({
               Direct Communication Hub
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              📞 Official Contact Channels
+              <Phone aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Official Contact Channels
             </h2>
           </div>
 
@@ -219,7 +225,7 @@ export const ContactUsPage = ({
               Tap & Request On-Site Visit
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>⚡ One-Tap Doorstep Technician Dispatch</span>
+              <span><Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> One-Tap Doorstep Technician Dispatch</span>
             </h2>
             <p className="text-xs text-gray-300 mt-1">
               Select your required service below to open a pre-formatted message in WhatsApp directly with our dispatch team.
@@ -227,7 +233,7 @@ export const ContactUsPage = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {quickServices.map((svc, idx) => <a
+            {quickServices.map(({ icon: Icon, ...svc }, idx) => <a
     key={idx}
     href={`https://wa.me/9779862772457?text=${encodeURIComponent(svc.msg)}`}
     target="_blank"
@@ -236,7 +242,7 @@ export const ContactUsPage = ({
   >
                 <div className="space-y-1">
                   <h3 className="text-xs sm:text-sm font-black text-white group-hover:text-green-300 transition-colors">
-                    {svc.name}
+                    <Icon aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mr-2" />{svc.name}
                   </h3>
                   <span className="text-[10px] text-gray-400 font-semibold block">
                     Instant WhatsApp Dispatch →
@@ -253,7 +259,7 @@ export const ContactUsPage = ({
   }
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed space-y-2">
             <div className="flex items-center gap-2 text-green-400 font-black">
-              <span>🇳🇵</span>
+              <MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><span>Nepal</span>
               <span>नेपाली भाषामा जानकारी</span>
             </div>
             <p className="text-gray-200">
@@ -272,7 +278,7 @@ export const ContactUsPage = ({
                 Panchthar District Headquarters
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-                📍 Office Location & Doorstep Coverage Areas
+                <MapPin aria-hidden="true" size={24} className="inline-block shrink-0 align-middle mx-1" /> Office Location & Doorstep Coverage Areas
               </h2>
             </div>
             <span className="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1 rounded-full self-start sm:self-auto">

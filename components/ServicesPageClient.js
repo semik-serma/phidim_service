@@ -15,7 +15,8 @@ import {
   X,
   ChevronRight,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Cable
 } from "lucide-react";
 
 export function ServicesPageClient({ categories = [] }) {
@@ -24,15 +25,15 @@ export function ServicesPageClient({ categories = [] }) {
 
   const filterPills = [
     { id: "ALL", label: "All Services (सबै सेवाहरू)" },
-    { id: "electrician-phidim", label: "⚡ Electrical & Inverter" },
-    { id: "plumbing-phidim", label: "🚰 Plumbing & Sanitary" },
-    { id: "cctv-phidim", label: "🎥 CCTV & Security" },
-    { id: "fibernet-phidim", label: "📡 DishHome FiberNet" },
-    { id: "internet-phidim", label: "🌐 WiFi & Internet" },
-    { id: "dishhome-phidim", label: "📺 DishHome DTH" },
-    { id: "computer-phidim", label: "💻 Computer Repair" },
-    { id: "ac-cooling-phidim", label: "❄️ AC & Cooling" },
-    { id: "networking-phidim", label: "🔌 LAN Networking" }
+    { icon: Zap, id: "electrician-phidim", label: "Electrical & Inverter" },
+    { icon: Droplet, id: "plumbing-phidim", label: "Plumbing & Sanitary" },
+    { icon: Camera, id: "cctv-phidim", label: "CCTV & Security" },
+    { icon: Wifi, id: "fibernet-phidim", label: "DishHome FiberNet" },
+    { icon: Wifi, id: "internet-phidim", label: "WiFi & Internet" },
+    { icon: Tv, id: "dishhome-phidim", label: "DishHome DTH" },
+    { icon: Monitor, id: "computer-phidim", label: "Computer Repair" },
+    { icon: Wind, id: "ac-cooling-phidim", label: "AC & Cooling" },
+    { icon: Cable, id: "networking-phidim", label: "LAN Networking" }
   ];
 
   const filteredCategories = useMemo(() => {
@@ -139,6 +140,7 @@ export function ServicesPageClient({ categories = [] }) {
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
           {filterPills.map((pill) => {
             const isSelected = selectedCategory === pill.id;
+            const Icon = pill.icon;
 
             return (
               <button
@@ -151,7 +153,7 @@ export function ServicesPageClient({ categories = [] }) {
                     : "bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 hover:border-gray-300"
                 }`}
               >
-                {pill.label}
+                {Icon && <Icon aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mr-2" />}{pill.label}
               </button>
             );
           })}

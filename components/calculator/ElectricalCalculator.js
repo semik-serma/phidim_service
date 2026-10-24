@@ -25,6 +25,9 @@ import {
   Receipt,
   Calendar,
   Layers,
+  Info,
+  Lightbulb,
+  MapPin
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { CalculatorInput } from "./CalculatorInput";
@@ -471,8 +474,8 @@ export function ElectricalCalculator({
 
   const modes = [
     { id: "battery", label: "Battery Runtime", icon: Battery, badge: "Popular" },
-    { id: "electricity-bill", label: "Electricity Bill 🇳🇵", icon: Receipt, badge: "NEA Slabs" },
-    { id: "electricity-cost", label: "Electricity Cost 🇳🇵", icon: Coins, badge: "NPR" },
+    { id: "electricity-bill", label: "Nepal Electricity Bill", icon: Receipt, badge: "NEA Slabs" },
+    { id: "electricity-cost", label: "Nepal Electricity Cost", icon: Coins, badge: "NPR" },
     { id: "voltage", label: "Voltage Calculator", icon: Zap, badge: "New" },
     { id: "inverter", label: "Inverter Capacity", icon: Gauge },
     { id: "combined", label: "Battery + Inverter", icon: Sparkles, badge: "System" },
@@ -549,8 +552,8 @@ export function ElectricalCalculator({
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
                 <span>
                   {activeMode === "battery" && "Battery Runtime Configuration"}
-                  {activeMode === "electricity-bill" && "Nepal Electricity Bill Configuration 🇳🇵"}
-                  {activeMode === "electricity-cost" && "Nepal Electricity Cost Calculator 🇳🇵"}
+                  {activeMode === "electricity-bill" && <><MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Nepal Electricity Bill Configuration</>}
+                  {activeMode === "electricity-cost" && <><MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Nepal Electricity Cost Calculator</>}
                   {activeMode === "voltage" && "Voltage Calculator"}
                   {activeMode === "inverter" && "Inverter Sizing & Load Check"}
                   {activeMode === "combined" && "Battery + Inverter System"}
@@ -1729,7 +1732,7 @@ export function ElectricalCalculator({
                     className="w-full text-left inline-flex items-center justify-between gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50/90 hover:bg-emerald-100/90 p-3 rounded-2xl border border-emerald-200/80 transition-all cursor-pointer shadow-2xs group"
                   >
                     <span className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-emerald-200/60 flex items-center justify-center text-xs">💡</span>
+                      <span className="w-6 h-6 rounded-lg bg-emerald-200/60 flex items-center justify-center text-xs"><Lightbulb aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /></span>
                       <span>Don&apos;t know your total units? Estimate from home appliances (उपकरणहरूबाट हिसाब गर्नुहोस्)</span>
                     </span>
                     <span className="text-emerald-700 group-hover:translate-x-0.5 transition-transform font-bold">→</span>
@@ -2163,13 +2166,13 @@ export function ElectricalCalculator({
                 {/* Disclaimer / Inverter notes */}
                 {calculationResult.disclaimer && (
                   <p className="text-[11px] text-slate-400 leading-relaxed italic bg-slate-950/30 p-3 rounded-xl border border-slate-800/50">
-                    ℹ️ {calculationResult.disclaimer}
+                    <Info aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> {calculationResult.disclaimer}
                   </p>
                 )}
 
                 {calculationResult.explanation && (
                   <p className="text-[11px] text-amber-300/90 leading-relaxed bg-amber-950/30 p-3 rounded-xl border border-amber-900/40">
-                    💡 {calculationResult.explanation}
+                    <Lightbulb aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> {calculationResult.explanation}
                   </p>
                 )}
 

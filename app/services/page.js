@@ -214,7 +214,7 @@ export default function ServicesPage() {
             </h1>
 
             <p className="text-sm sm:text-base text-green-300 font-bold">
-              Connecting You with Expert Local Technicians in Phidim & Panchthar! 🏠⚡
+              Connecting You with Expert Local Technicians in Phidim & Panchthar! <Home aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /><Zap aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" />
             </p>
 
             <p className="text-xs sm:text-sm text-gray-300 leading-relaxed max-w-2xl mx-auto font-normal">
@@ -243,13 +243,13 @@ export default function ServicesPage() {
                 href="/phidim"
                 className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 font-extrabold text-xs hover:bg-emerald-100 transition-colors"
               >
-                📍 Phidim City Page
+                <MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Phidim City Page
               </Link>
               <Link
                 href="/panchthar"
                 className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-300 font-extrabold text-xs hover:bg-indigo-100 transition-colors"
               >
-                📍 Panchthar District Page
+                <MapPin aria-hidden="true" size={16} className="inline-block shrink-0 align-middle mx-1" /> Panchthar District Page
               </Link>
             </div>
           </div>

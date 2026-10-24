@@ -1,178 +1,81 @@
 "use client";
 
-import { useState } from "react";
 import { ExternalLink, Sparkles } from "lucide-react";
 
-export const RopePullingDevBadge = ({ className = "" }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
+export const RopePullingDevBadge = ({ className = "" }) => (
+  <div className={`dev-credit relative inline-flex items-center select-none ${className}`}>
     <div
-      className={`inline-flex items-center group relative select-none ${className}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      aria-hidden="true"
+      className="dev-credit__tooltip absolute bottom-full left-1/2 z-50 mb-2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-md border border-green-800 bg-slate-900 px-2 py-1 text-[10px] font-bold text-green-100 shadow-lg"
     >
-      {/* Interactive Tooltip on hover */}
-      <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 whitespace-nowrap bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-lg border border-slate-700 flex items-center gap-1">
-        <Sparkles className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
-        <span>Crafted by Semik Serma • View Portfolio</span>
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-      </div>
+      <Sparkles className="h-2.5 w-2.5 text-green-300" />
+      <span>Crafted by Semik Serma • View Portfolio</span>
+    </div>
 
-      {/* The Animated Pulling Man */}
-      <div className="relative flex items-center shrink-0">
-        <svg
-          viewBox="0 0 54 38"
-          className={`w-9 h-7 sm:w-11 sm:h-8 overflow-visible transition-transform duration-300 ${
-            isHovered ? "scale-110" : ""
-          }`}
-        >
-          {/* Ground shadow */}
-          <ellipse cx="26" cy="35" rx="15" ry="2.5" fill="rgba(0,0,0,0.12)" />
+    {/* Move the entire scene together so the rope stays attached to the badge. */}
+    <div className="dev-credit__scene inline-flex items-center">
+      <svg
+        viewBox="0 0 88 44"
+        width="88"
+        height="44"
+        aria-hidden="true"
+        focusable="false"
+        className="block h-7 w-14 shrink-0 overflow-visible sm:h-10 sm:w-20"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <ellipse cx="24" cy="40" rx="18" ry="2" fill="#64748b" opacity="0.18" />
 
-          {/* Effort sweat drops */}
-          <g className={`transition-opacity duration-200 ${isHovered ? "opacity-100" : "opacity-80"}`}>
-            <path
-              d="M12 11 Q10 9 10 7 Q11 6 12 7 Q13 9 12 11 Z"
-              fill="#0ea5e9"
-              className="animate-sweat-drop"
-            />
-            <path
-              d="M9 16 Q7 14 7 12 Q8 11 9 12 Q10 14 9 16 Z"
-              fill="#38bdf8"
-              className="animate-sweat-drop-delayed"
-            />
-          </g>
+        {/* Knee movement pivots around the feet instead of rocking the whole man. */}
+        <g className="dev-credit__back-leg" stroke="#334155" strokeWidth="3.5">
+          <path d="M23 28 L16 33 L11 38" />
+          <path d="M7 39 H13" stroke="#0f172a" strokeWidth="4" />
+        </g>
+        <g className="dev-credit__front-leg" stroke="#475569" strokeWidth="3.5">
+          <path d="M25 28 L30 33 L34 38" />
+          <path d="M33 39 H39" stroke="#0f172a" strokeWidth="4" />
+        </g>
 
-          {/* Pulling Character Group */}
-          <g className={`origin-bottom ${isHovered ? "animate-man-pull-fast" : "animate-man-pull"}`}>
-            {/* Back Leg - Bracing against the pull */}
-            <path
-              d="M22 23 L13 33 L8 33"
-              stroke="#0f172a"
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-            {/* Front Leg - Bent forward for leverage */}
-            <path
-              d="M26 23 L30 28 L35 34"
-              stroke="#1e293b"
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
+        {/* The hands are the pivot: the grip never separates from the rope. */}
+        <g className="dev-credit__upper-body">
+          <path d="M23 18 L22 28" stroke="#15803d" strokeWidth="7" />
+          <path d="M24 19 L30 23 L40 22" stroke="#166534" strokeWidth="3" />
+          <path d="M22 16 L22 13" stroke="#d6d3d1" strokeWidth="3" />
+          <circle cx="22" cy="10" r="5" fill="#f1f5f9" stroke="#334155" strokeWidth="1.4" />
+          <path d="M17 9 Q17 3 22 3 Q27 3 27 8 Z" fill="#16a34a" />
+          <path d="M17 8 H13" stroke="#15803d" strokeWidth="2" />
+          <circle cx="24.5" cy="10" r="0.8" fill="#0f172a" />
+          <path d="M24 13 L26 12.5" stroke="#475569" strokeWidth="0.8" />
+          <path d="M21 19 L29 25 L40 22" stroke="#22c55e" strokeWidth="3.5" />
+          <ellipse cx="40" cy="22" rx="3" ry="2.3" fill="#dcfce7" stroke="#166534" strokeWidth="1.2" />
+        </g>
 
-            {/* Torso leaning back with effort */}
-            <path
-              d="M24 14 L20 23"
-              stroke="#0284c7"
-              strokeWidth="5"
-              strokeLinecap="round"
-              fill="none"
-            />
+        {/* Both endpoints stay fixed; the shared scene supplies the pulling travel. */}
+        <path d="M40 22 H88" stroke="#166534" strokeWidth="2.4" />
+        <path d="M43 22 H85" stroke="#86efac" strokeWidth="0.8" strokeDasharray="2 3" />
+        <path d="M85 20 L88 22 L85 24" stroke="#15803d" strokeWidth="1.8" />
+      </svg>
 
-            {/* Developer Head with Cap */}
-            <circle cx="21" cy="9.5" r="5" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.8" />
-            
-            {/* Blue Developer Cap (backward visor) */}
-            <path d="M16 8.5 L26 7 L23 4.5 Z" fill="#0284c7" />
-            <path d="M15 8.5 L11 9.5" stroke="#0284c7" strokeWidth="1.8" strokeLinecap="round" />
-
-            {/* Eye (focused/determined) */}
-            <circle cx="23.5" cy="9.5" r="0.8" fill="#0f172a" />
-            {/* Determined Eyebrow */}
-            <path d="M22 8 L24.5 9" stroke="#0f172a" strokeWidth="0.8" strokeLinecap="round" />
-
-            {/* Back Arm gripping rope */}
-            <path
-              d="M22 15 L28 16 L38 16"
-              stroke="#0284c7"
-              strokeWidth="2.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-
-            {/* Hands with gloves holding the rope */}
-            <circle cx="38" cy="16" r="2.2" fill="#f59e0b" stroke="#78350f" strokeWidth="1" />
-            <circle cx="41" cy="16.5" r="2" fill="#f59e0b" stroke="#78350f" strokeWidth="1" />
-
-            {/* Front Arm pulling hard */}
-            <path
-              d="M21 16 L29 18 L41 16.5"
-              stroke="#0369a1"
-              strokeWidth="2.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </g>
-        </svg>
-      </div>
-
-      {/* The Animated Rope */}
-      <div className="relative flex items-center -mx-1 sm:-mx-0.5 shrink-0">
-        <svg
-          className="w-5 sm:w-8 md:w-10 h-4 overflow-visible"
-          viewBox="0 0 40 12"
-          fill="none"
-        >
-          <defs>
-            <linearGradient id="ropeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#d97706" />
-              <stop offset="50%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#b45309" />
-            </linearGradient>
-          </defs>
-
-          {/* Rope line with animated dash & tension vibration */}
-          <path
-            d="M0 6 Q20 6.5 38 6"
-            stroke="url(#ropeGradient)"
-            strokeWidth="2.5"
-            strokeDasharray="4 2"
-            strokeLinecap="round"
-            className={isHovered ? "animate-rope-fast" : "animate-rope"}
-          />
-
-          {/* Rope Knot tied securely to the badge */}
-          <circle cx="38" cy="6" r="2.5" fill="#b45309" stroke="#78350f" strokeWidth="1" />
-          <path d="M38 4 L38 8" stroke="#fef3c7" strokeWidth="1" strokeLinecap="round" />
-        </svg>
-      </div>
-
-      {/* The "Developed by Semik Serma" Badge Being Pulled */}
       <a
         href="https://portfolio.phidimservice.com.np"
         target="_blank"
         rel="noopener noreferrer"
-        className={`relative inline-flex items-center gap-1.5 bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 hover:from-sky-300 hover:to-blue-400 text-slate-950 font-black px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs shadow-md border border-cyan-200/90 transition-all hover:scale-105 cursor-pointer select-none shrink-0 ${
-          isHovered ? "animate-badge-pulled-fast shadow-cyan-300/50 shadow-lg ring-2 ring-cyan-400/40" : "animate-badge-pulled shadow-xs"
-        }`}
-        title="Developed by Semik Serma • Visit Portfolio"
+        aria-label="Developed by Semik Serma — View portfolio"
+        className="dev-credit__badge relative inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-green-300 bg-gradient-to-r from-green-100 to-emerald-200 px-2.5 py-1 text-[11px] font-black text-green-950 shadow-xs sm:px-3 sm:text-xs"
       >
-        {/* Pulsing indicator dot */}
-        <span className="flex h-2 w-2 relative shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-60"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950"></span>
-        </span>
-
-        {/* Text */}
-        <span className="font-extrabold tracking-tight whitespace-nowrap text-slate-950">
+        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-700" />
+        <span className="whitespace-nowrap font-extrabold tracking-tight">
           <span className="hidden 2xl:inline">
-            Developed by <span className="underline decoration-slate-950/40 underline-offset-2 font-black">Semik Serma</span>
+            Developed by <span className="font-black underline decoration-green-800/40 underline-offset-2">Semik Serma</span>
           </span>
           <span className="hidden sm:inline 2xl:hidden">
             By <span className="font-black">Semik Serma</span>
           </span>
-          <span className="sm:hidden font-black">Semik</span>
+          <span className="font-black sm:hidden">Semik</span>
         </span>
-
-        <ExternalLink className="w-3 h-3 text-slate-950 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+        <ExternalLink aria-hidden="true" className="h-3 w-3 shrink-0" />
       </a>
     </div>
-  );
-};
+  </div>
+);
