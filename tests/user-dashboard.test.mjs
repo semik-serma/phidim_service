@@ -15,35 +15,30 @@ const compiled = await transform(source, {
   module: { type: "commonjs" },
 });
 
-function dashboardHarness(initialBookings = []) {
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+function dashboardHarness(fetchBookings = async () => []) {
   const states = [];
   let hookIndex = 0;
   let effect;
-  let subscription;
-  let unsubscribed = false;
   let logoutCalls = 0;
-  const auth = { user: { email: "customer@example.com" }, logout: () => { logoutCalls++; } };
+  const auth = { user: { id: 1, email: "customer@example.com", role: "USER" }, isAuthenticated: true, isLoading: false, logout: () => { logoutCalls++; } };
   const module = { exports: {} };
   vm.runInNewContext(compiled.code, {
-    React, module, exports: module.exports,
+    React, AbortController, module, exports: module.exports,
     require: name => {
       if (name === "react") return {
         ...React,
         useState: initial => {
           const index = hookIndex++;
           if (states[index] === undefined) states[index] = initial;
-          return [states[index], value => { states[index] = value; }];
+          return [states[index], value => { states[index] = typeof value === "function" ? value(states[index]) : value; }];
         },
         useEffect: callback => { effect = callback; },
       };
       if (name === "@/context/AuthContext") return { useAuth: () => auth };
-      if (name === "@/lib/bookingStore") return {
-        getBookingsList: () => initialBookings,
-        subscribeBookings: callback => {
-          subscription = callback;
-          return () => { unsubscribed = true; };
-        },
-      };
+      if (name === "@/services/bookingService") return { fetchBookings };
+      if (name === "./BookingLiveLocationButton") return { __esModule: true, default: ({ bookingId }) => React.createElement("button", { "data-booking-id": bookingId }, "Show live location") };
       if (name === "lucide-react") return Object.fromEntries(["LogOut", "BriefcaseBusiness", "ChevronLeft", "ChevronRight", "Menu", "ShieldCheck", "X"].map(name => [name, () => null]));
       if (name.endsWith(".module.css")) return {};
       throw new Error(`Unexpected dashboard dependency: ${name}`);
@@ -55,8 +50,6 @@ function dashboardHarness(initialBookings = []) {
     tree,
     html: () => renderToStaticMarkup(tree()),
     mount: () => { tree(); return effect(); },
-    update: bookings => subscription(bookings),
-    get unsubscribed() { return unsubscribed; },
     get logoutCalls() { return logoutCalls; },
   };
 }
@@ -71,9 +64,11 @@ function findElement(element, predicate) {
   return null;
 }
 
-test("dashboard keeps sidebar navigation, a working Logout button and a plain bookings list", () => {
+test("dashboard keeps sidebar navigation, a working Logout button and a plain bookings list", async () => {
   const dashboard = dashboardHarness();
   dashboard.mount();
+  assert.match(dashboard.html(), /Loading bookings/);
+  await tick();
   const html = dashboard.html();
   assert.match(html, /My Bookings/);
   assert.match(html, /No bookings yet/);
@@ -85,43 +80,89 @@ test("dashboard keeps sidebar navigation, a working Logout button and a plain bo
   assert.equal(dashboard.logoutCalls, 1);
 });
 
-test("initial and live bookings strictly belong to the current user and show every row", () => {
-  const owned = Array.from({ length: 6 }, (_, index) => ({
-    id: `OWN-${index}`, serviceName: `Service ${index}`, customerEmail: " Customer@Example.COM ",
-    amount: index === 0 ? 0 : "Rs. 500", status: "Pending",
+test("dashboard fetches and renders every API booking with backend fields and Nepal time", async () => {
+  const bookings = Array.from({ length: 6 }, (_, index) => ({
+    id: 100 + index, problem_details: `Service ${index}`, status: "p", status_display: "pending",
+    technician: index ? null : { first_name: "Ram", last_name: "Shrestha" },
+    date: index ? null : "2026-10-14T04:48:00Z", amount: index === 0 ? 0 : undefined,
   }));
-  const foreign = [
-    { id: "FOREIGN", customerEmail: "other@example.com" },
-    { id: "PARTIAL", customerEmail: "prefix-customer@example.com" },
-    { id: "OWNERLESS" }, null,
-  ];
-  const dashboard = dashboardHarness([...owned, ...foreign]);
+  let signal;
+  const dashboard = dashboardHarness(async options => { signal = options.signal; return bookings; });
   const cleanup = dashboard.mount();
-  let html = dashboard.html();
-  for (const booking of owned) assert.ok(html.includes(booking.id));
-  assert.doesNotMatch(html, /FOREIGN|PARTIAL|OWNERLESS/);
+  await tick();
+  const html = dashboard.html();
+  for (const booking of bookings) assert.ok(html.includes(booking.problem_details));
+  assert.match(html, /6 bookings/);
+  assert.match(html, /Ram Shrestha/);
+  assert.equal((html.match(/Show live location/g) || []).length, 6);
+  assert.match(html, /data-booking-id="100"/);
+  assert.match(html, /pending/);
+  assert.match(html, /14 Oct 2026, 10:33 am \(Nepal time\)/);
   assert.match(html, /<td>0<\/td>/);
   assert.match(html, /Not assigned/);
-  dashboard.update([{ ...owned[0], id: "LIVE" }, ...foreign]);
-  html = dashboard.html();
-  assert.match(html, /LIVE/);
-  assert.doesNotMatch(html, /OWN-|FOREIGN|PARTIAL|OWNERLESS/);
-  dashboard.update([]);
-  assert.match(dashboard.html(), /No bookings yet/);
+  assert.match(html, /Not scheduled/);
   cleanup();
-  assert.equal(dashboard.unsubscribed, true);
+  assert.equal(signal.aborted, true);
 });
 
-test("changing or missing user identity never displays the previous customer's bookings", () => {
-  const dashboard = dashboardHarness([{ id: "PRIVATE", customerEmail: "customer@example.com" }]);
-  dashboard.mount();
+test("changing or missing user identity never displays the previous customer's bookings", async () => {
+  let calls = 0;
+  const dashboard = dashboardHarness(async () => { calls++; return [{ id: 1, problem_details: "PRIVATE" }]; });
+  const cleanup = dashboard.mount();
+  await tick();
   assert.match(dashboard.html(), /PRIVATE/);
-  dashboard.auth.user = { email: "another@example.com" };
+  cleanup();
+  dashboard.auth.user = { id: 2, email: "another@example.com", role: "USER" };
   assert.doesNotMatch(dashboard.html(), /PRIVATE/);
+  dashboard.mount();
+  assert.equal(calls, 2);
   dashboard.auth.user = null;
   assert.doesNotMatch(dashboard.html(), /PRIVATE/);
 });
 
+test("failed requests show an error and retry fetches again", async () => {
+  let calls = 0;
+  const dashboard = dashboardHarness(async () => {
+    if (++calls === 1) throw new Error("Your session expired. Please sign in again.");
+    return [];
+  });
+  dashboard.mount();
+  await tick();
+  assert.match(dashboard.html(), /role="alert"/);
+  assert.match(dashboard.html(), /Your session expired/);
+  assert.doesNotMatch(dashboard.html(), /No bookings yet/);
+  findElement(dashboard.tree(), element => element.type === "button" && element.props.children === "Retry").props.onClick();
+  assert.match(dashboard.html(), /Loading bookings/);
+  dashboard.mount();
+  await tick();
+  assert.equal(calls, 2);
+  assert.match(dashboard.html(), /No bookings yet/);
+});
+
+test("unmounted and superseded requests cannot restore stale bookings", async () => {
+  let resolve;
+  const dashboard = dashboardHarness(() => new Promise(done => { resolve = done; }));
+  const cleanup = dashboard.mount();
+  cleanup();
+  resolve([{ id: 1, problem_details: "STALE" }]);
+  await tick();
+  assert.doesNotMatch(dashboard.html(), /STALE/);
+});
+
+test("dashboard waits for authentication and does not fetch for unauthorized roles", () => {
+  const dashboard = dashboardHarness(() => assert.fail("Unexpected booking request"));
+  dashboard.auth.isLoading = true;
+  dashboard.mount();
+  assert.equal(dashboard.html(), "");
+  dashboard.auth.isLoading = false;
+  dashboard.auth.user.role = "TECHNICIAN";
+  dashboard.mount();
+  assert.equal(dashboard.html(), "");
+  dashboard.auth.user.role = "USER";
+  dashboard.auth.isAuthenticated = false;
+  dashboard.mount();
+  assert.equal(dashboard.html(), "");
+});
 
 test("sidebar can collapse and mobile navigation can open and close", () => {
   const dashboard = dashboardHarness();

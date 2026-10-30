@@ -75,6 +75,9 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
     refresh() { visit(tree, node => node.type === 'button').props.onClick(); },
     search(value) { visit(tree, node => node.type === 'input').props.onChange({ target: { value } }); },
     open(id) { visit(tree, node => node.props?.['aria-label'] === `Review booking #${id}`).props.onClick({ stopPropagation() {} }); },
+    share() { visit(tree, node => node.props?.['aria-label'] === 'Share live location for booking #20').props.onClick({ stopPropagation() {} }); },
+    confirmShare() { visit(tree, node => node.type === 'button' && node.props.children === 'Confirm location share').props.onClick(); },
+    closeShare() { visit(tree, node => node.props?.['aria-label'] === 'Close location sharing').props.onClick(); },
     mapLink(id = 20) { return visit(tree, node => node.type === 'a' && node.props['aria-label'].includes(`for booking #${id} `))?.props; },
     clickMap() {
       const row = visit(tree, node => node.type === 'tr' && typeof node.props.onClick === 'function');
@@ -91,6 +94,65 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const booking = { id: 20, status: 'p', status_display: 'pending', customer: { first_name: 'ram', last_name: 'sita' }, technician: { first_name: 'semik', last_name: 'anaconda' }, date: '2026-10-14T04:48:00Z', problem_details: 'Home Appliance service I need', latitude: '26.6500000', longitude: '87.6500000' };
+
+test('location sharing connects only after confirmation, retries errors and closes on dismissal', async () => {
+  const sockets = [];
+  const intervals = new Map();
+  const document = { cookie: 'other=value; phidim_access_token=dummy%2Baccess%2Ftoken%3D' };
+  let intervalId = 0;
+  class WebSocket {
+    static OPEN = 1;
+    constructor(url) { this.url = url; this.readyState = 0; this.messages = []; sockets.push(this); }
+    send(message) { this.messages.push(JSON.parse(message)); }
+    close() { this.closed = true; }
+  }
+  const app = harness(async () => [booking], undefined, {
+    WebSocket, document,
+    setInterval(callback, delay) { assert.equal(delay, 1000); intervals.set(++intervalId, callback); return intervalId; },
+    clearInterval(id) { intervals.delete(id); },
+  });
+  app.render(); await settle(); app.render();
+  app.share();
+  assert.match(app.render(), /Confirm location share/);
+  assert.equal(sockets.length, 0);
+  app.confirmShare(); app.render();
+  const socketUrl = new URL(sockets[0].url);
+  assert.equal(socketUrl.origin + socketUrl.pathname, 'ws://127.0.0.1:8000/ws/share-location/20/');
+  assert.equal(socketUrl.searchParams.get('token'), 'dummy+access/token=');
+  assert.equal(intervals.size, 0);
+  sockets[0].onerror();
+  assert.match(app.render(), /Unable to connect/);
+  app.confirmShare(); app.render();
+  assert.equal(sockets.length, 2);
+  assert.equal(sockets[0].closed, true);
+  sockets[1].readyState = WebSocket.OPEN;
+  sockets[1].onopen();
+  assert.match(app.render(), /WebSocket connected/);
+  assert.equal(sockets[1].messages.length, 0);
+  const tick = [...intervals.values()][0];
+  tick(); tick();
+  assert.deepEqual(sockets[1].messages, [
+    { type: 'location_update', latitude: 27.1479, longitude: 87.7657 },
+    { type: 'location_update', latitude: 27.1479, longitude: 87.7657 },
+  ]);
+  sockets[1].readyState = 3;
+  tick();
+  assert.equal(sockets[1].messages.length, 2);
+  sockets[1].onclose();
+  assert.equal(intervals.size, 0);
+  app.render(); app.confirmShare(); app.render();
+  sockets[2].readyState = WebSocket.OPEN;
+  sockets[2].onopen();
+  assert.equal(intervals.size, 1);
+  app.closeShare(); app.render();
+  assert.equal(sockets[2].closed, true);
+  assert.equal(intervals.size, 0);
+  document.cookie = 'other=value';
+  app.share(); app.render(); app.confirmShare(); app.render();
+  assert.match(app.render(), /access token is missing/);
+  assert.equal(sockets.length, 3);
+  app.unmount();
+});
 
 function mapBrowser({ secure = true, supported = true, throws = false } = {}) {
   const requests = [], timers = new Map();

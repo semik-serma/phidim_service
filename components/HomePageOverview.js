@@ -1,3 +1,4 @@
+import { HomeReveal } from "./home/HomeMotion";
 import { useState, useEffect, useMemo } from "react";
 import {
   FaScrewdriverWrench,
@@ -249,7 +250,7 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
   return (
     <div className="space-y-12 pb-12">
       {/* 1. HERO WELCOME SECTION ("Little information from Home") */}
-      <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-8 sm:p-12 lg:p-14 shadow-2xl border border-slate-800 relative overflow-hidden w-full">
+      <HomeReveal as="section" className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-8 sm:p-12 lg:p-14 shadow-2xl border border-slate-800 relative overflow-hidden w-full">
         <div className="absolute top-0 right-0 w-96 h-96 bg-green-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
@@ -321,10 +322,10 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
             </div>
           </div>
         </div>
-      </section>
+      </HomeReveal>
 
       {/* 2. ALL SERVICES PREVIEW ("Little information from All Services") */}
-      <section className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
+      <HomeReveal as="section" className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
           <div>
             <div className="inline-flex items-center gap-1.5 text-green-600 font-extrabold text-xs uppercase tracking-widest mb-1">
@@ -372,10 +373,11 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
 
         {!isLoading && !fetchError && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {previewCategories.map((category) => {
+            {previewCategories.map((category, index) => {
               const CategoryIcon = category.icon;
               return (
-                <div
+                <HomeReveal
+                  delay={index * 0.06}
                   key={category.id}
                   className={`${category.cardClass} rounded-2xl p-4 space-y-2 transition-colors`}
                 >
@@ -390,15 +392,15 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
                   <p className="text-xs text-gray-600 font-medium leading-relaxed line-clamp-3">
                     {category.blurb}
                   </p>
-                </div>
+                </HomeReveal>
               );
             })}
           </div>
         )}
-      </section>
+      </HomeReveal>
 
       {/* 3. LAN NETWORKING PREVIEW ("Little information about LAN Networking") */}
-      <section className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-md space-y-6">
+      <HomeReveal as="section" className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-md space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div>
             <div className="inline-flex items-center gap-1.5 text-cyan-400 font-extrabold text-xs uppercase tracking-widest mb-1">
@@ -454,10 +456,10 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
             </p>
           </div>
         </div>
-      </section>
+      </HomeReveal>
 
       {/* 4. GUARANTEES & SERVICE EXCELLENCE METRICS */}
-      <section className="bg-gradient-to-r from-emerald-900 via-teal-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-emerald-800 shadow-md space-y-6">
+      <HomeReveal as="section" className="bg-gradient-to-r from-emerald-900 via-teal-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-emerald-800 shadow-md space-y-6">
         <div className="border-b border-white/10 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="inline-flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs uppercase tracking-widest mb-1"></div>
@@ -523,10 +525,10 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
             </p>
           </div>
         </div>
-      </section>
+      </HomeReveal>
 
       {/* 5. ABOUT US PREVIEW ("Little information about Us") */}
-      <section className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
+      <HomeReveal as="section" className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
           <div className="md:col-span-7 space-y-4">
             <div className="inline-flex items-center gap-1.5 text-green-600 font-extrabold text-xs uppercase tracking-widest">
@@ -590,10 +592,10 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
             </a>
           </div>
         </div>
-      </section>
+      </HomeReveal>
 
       {/* 5. CONTACT US PREVIEW ("Little information about Contact Us") */}
-      <section className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl space-y-6">
+      <HomeReveal as="section" className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div>
             <div className="inline-flex items-center gap-1.5 text-green-400 font-extrabold text-xs uppercase tracking-widest mb-1">
@@ -646,7 +648,7 @@ export const HomePageOverview = ({ onNavigateTab, onOpenWhatsApp }) => {
             </p>
           </div>
         </div>
-      </section>
+      </HomeReveal>
     </div>
   );
 };

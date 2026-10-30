@@ -68,7 +68,8 @@ const QUICK_ROLES = [
   },
 ];
 
-export function BrandPanel({ isLoading, onDemoLogin }) {
+export function BrandPanel({ isLoading, onDemoLogin, variant = 'login' }) {
+  const isRegister = variant === 'register';
   return (
     <aside
       id={WRAP}
@@ -114,15 +115,16 @@ export function BrandPanel({ isLoading, onDemoLogin }) {
       <div className="relative z-10 space-y-8">
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ animationDelay: '100ms' }}>
           <h2 className="text-4xl xl:text-[2.85rem] font-extrabold text-white tracking-tight leading-[1.12]">
-            Reliable technical &amp; digital solutions at your{' '}
+            {isRegister ? 'Your next chapter starts with a ' : 'Reliable technical & digital solutions at your '}
             <span className="bg-gradient-to-r from-[#22C55E] to-[#2DD4BF] bg-clip-text text-transparent">
-              doorstep
+              {isRegister ? 'local connection' : 'doorstep'}
             </span>
             .
           </h2>
           <p className="text-slate-400 text-[15px] leading-relaxed max-w-xl">
-            Sign in to manage requests, connect with verified technicians, track CCTV &amp;
-            fiber installations, and control your field operations — all from one dashboard.
+            {isRegister
+              ? 'From your first service booking to your next field assignment, join the people keeping Phidim connected. One account brings it all together.'
+              : 'Sign in to manage requests, connect with verified technicians, track CCTV & fiber installations, and control your field operations — all from one dashboard.'}
           </p>
         </div>
 

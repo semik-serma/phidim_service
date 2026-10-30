@@ -17,6 +17,7 @@ import { AboutPage } from "./components/AboutPage";
 import { AboutModal } from "./components/AboutModal";
 import { WhatsAppWidget } from "./components/WhatsAppWidget";
 import { HomePageOverview } from "./components/HomePageOverview";
+import { HomeReveal } from "./components/home/HomeMotion";
 import { HeroCarousel } from "./components/HeroCarousel";
 import { HomepageCommentSection } from "./components/HomepageCommentSection";
 import { ServiceBookingModal } from "./components/ServiceBookingModal";
@@ -183,7 +184,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-gray-900 font-sans flex flex-col selection:bg-green-500 selection:text-white" suppressHydrationWarning>
+    <div data-home-motion={activeTab === "HOME" ? "true" : undefined} className="min-h-screen bg-slate-50 text-gray-900 font-sans flex flex-col selection:bg-green-500 selection:text-white" suppressHydrationWarning>
       {/* Toast Banner */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
@@ -249,26 +250,26 @@ export default function App() {
             <HeroCarousel
               onExploreServices={() => {
                 setActiveTab("ALL SERVICES");
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
               }}
               onFiberSelect={() => {
                 setActiveTab("ALL SERVICES");
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
               }}
               onBookService={handleBookService}
             />
 
             {/* 2. Comment Box in between Carousel and Technical Services Section */}
-            <div className="max-w-[1536px] mx-auto px-4 md:px-8 lg:px-12 pt-6 sm:pt-8 md:pt-10 pb-4">
+            <HomeReveal className="max-w-[1536px] mx-auto px-4 md:px-8 lg:px-12 pt-6 sm:pt-8 md:pt-10 pb-4">
               <HomepageCommentSection />
-            </div>
+            </HomeReveal>
 
             {/* 3. Section: Professional On-Site Technical Services in Panchthar */}
             <div className="max-w-[1536px] mx-auto px-4 md:px-8 lg:px-12 py-4 space-y-12">
               <HomePageOverview
                 onNavigateTab={(tab) => {
                   setActiveTab(tab);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
                 }}
                 onOpenWhatsApp={(msg) => {
                   window.open(

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { HOME_EASE } from "./home/HomeMotion";
+import { startCarouselPlayback } from "@/lib/homeCarouselPlayback";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +25,15 @@ import {
 
 export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const reducedMotion = useReducedMotion();
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [selectionVersion, setSelectionVersion] = useState(0);
+  const playing = !reducedMotion;
+  const selectSlide = (selection) => {
+    setCurrentSlide(selection);
+    setSelectionVersion((version) => version + 1);
+  };
   const [adminSlides, setAdminSlides] = useState(() => getHeroCarouselSlides());
 
   const defaultSlides = [
@@ -193,27 +205,95 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
     refreshHeroCarouselSlides();
   }, []);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [slides.length]);
+  useEffect(() => startCarouselPlayback({
+    paused: !playing || hovered || focused || slides.length < 2,
+    onAdvance: () => setCurrentSlide((previous) => (previous + 1) % slides.length),
+  }), [playing, hovered, focused, currentSlide, selectionVersion, slides.length]);
 
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-  };
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length);
-  };
-
-  const active = slides[currentSlide] || slides[0];
+  const prevSlide = () => selectSlide((previous) => (previous - 1 + slides.length) % slides.length);
+  const nextSlide = () => selectSlide((previous) => (previous + 1) % slides.length);
 
   return (
-    <section className="relative overflow-hidden w-full min-h-[440px] sm:min-h-[480px] md:min-h-[520px] lg:min-h-[560px] flex items-center shadow-2xl border-b border-slate-800/40">
+    <section
+      aria-roledescription="carousel"
+      aria-label="Featured services"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
+      className="home-carousel relative bg-slate-950 overflow-hidden w-full pb-14 min-h-[440px] sm:min-h-[480px] md:min-h-[520px] lg:min-h-[560px] flex items-center shadow-2xl border-b border-slate-800/40">
+      <div className="grid w-full">
+        {slides.map((active, index) => {
+          const isActive = index === currentSlide;
+          return (
+            <motion.div
+              key={active.id}
+              className="relative min-w-0"
+              style={{ gridArea: "1 / 1", pointerEvents: isActive ? "auto" : "none", zIndex: isActive ? 1 : 0 }}
+              initial={false}
+              animate={{ opacity: isActive ? 1 : 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.45, ease: HOME_EASE }}
+              inert={!isActive}
+              aria-hidden={!isActive}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${index + 1} of ${slides.length}: ${active.title}`}
+            >
+              <HeroSlide active={active} isActive={isActive} reducedMotion={reducedMotion} />
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Slide Navigation Arrows */}
+      <button
+        onClick={prevSlide}
+        className="absolute left-3 bottom-2 md:bottom-auto md:left-8 md:top-1/2 md:-translate-y-1/2 w-11 h-11 rounded-full bg-black/30 hover:bg-black/60 text-white flex items-center justify-center transition-colors z-20 cursor-pointer backdrop-blur-sm border border-white/20"
+        aria-label="Previous slide"
+      >
+        <ChevronLeft className="w-6 h-6" />
+      </button>
+
+      <button
+        onClick={nextSlide}
+        className="absolute left-16 bottom-2 md:left-auto md:bottom-auto md:right-8 md:top-1/2 md:-translate-y-1/2 w-11 h-11 rounded-full bg-black/30 hover:bg-black/60 text-white flex items-center justify-center transition-colors z-20 cursor-pointer backdrop-blur-sm border border-white/20"
+        aria-label="Next slide"
+      >
+        <ChevronRight className="w-6 h-6" />
+      </button>
+
+      {/* Pagination Indicators */}
+      <div className="absolute bottom-3 left-28 md:left-3 right-3 flex overflow-x-auto md:justify-center items-center gap-1 z-20">
+        {slides.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => selectSlide(idx)}
+            aria-current={currentSlide === idx ? "true" : undefined}
+            aria-label={`Go to slide ${idx + 1}`}
+            className={`h-6 w-6 shrink-0 rounded-full border-[7px] border-transparent bg-clip-padding transition-colors cursor-pointer ${
+              currentSlide === idx ? "bg-white" : "bg-white/50 hover:bg-white/80"
+            }`}
+          />
+        ))}
+      </div>
+    </section>
+  );
+};
+
+// All slide shells share one grid cell to reserve the tallest content's space.
+// Images are requested only after their slide has been visited.
+function HeroSlide({ active, isActive, reducedMotion }) {
+  const [visited, setVisited] = useState(isActive);
+  useEffect(() => {
+    if (isActive) setVisited(true);
+  }, [isActive]);
+  const loadImages = isActive || visited;
+  return (
+    <>
       {/* Dynamic Slide Background */}
-      <div className={`absolute inset-0 transition-all duration-700 ${active.bgClass}`}>
+      <div className={`absolute inset-0 ${active.bgClass}`}>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-black/30 pointer-events-none" />
       </div>
 
@@ -222,7 +302,11 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-center">
           
           {/* Left Text Column */}
-          <div className="md:col-span-7 text-white space-y-3 sm:space-y-4 animate-in fade-in slide-in-from-left duration-500">
+          <motion.div
+            initial={{ y: reducedMotion ? 0 : 8 }}
+            animate={{ y: isActive ? 0 : (reducedMotion ? 0 : 8) }}
+            transition={{ duration: reducedMotion ? 0 : 0.45, ease: HOME_EASE }}
+            className="md:col-span-7 text-white space-y-3 sm:space-y-4">
             <span className="inline-block text-xs md:text-sm font-extrabold tracking-widest text-cyan-200 uppercase bg-white/10 px-3 py-1 rounded-sm border border-white/20 backdrop-blur-xs">
               {active.subtitle}
             </span>
@@ -244,7 +328,7 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-          </div>
+          </motion.div>
 
           {/* Right Service Graphic Column */}
           <div className="md:col-span-5 flex items-center justify-center relative">
@@ -253,7 +337,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
             {active.type === "admin_image" && (
               <div className="relative h-[260px] sm:h-[300px] md:h-[340px] w-full max-w-md lg:max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-slate-900/40 shadow-2xl">
                 <img
-                  src={active.image}
+                  loading={isActive ? "eager" : "lazy"}
+                  src={loadImages ? active.image : undefined}
                   alt={active.title}
                   className="h-full w-full object-cover"
                 />
@@ -266,10 +351,10 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
             {/* 1. CC Camera Installation & Maintenance Graphic (cc.png) */}
             {(active.type === "cc_install_graphic" || active.type === "cc_camera") && (
-              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-cyan-300 animate-pulse" />
+                    <ShieldCheck className="w-5 h-5 text-cyan-300" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       CC Camera & Surveillance
                     </span>
@@ -281,7 +366,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                 <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-52 sm:h-60 md:h-64 group bg-slate-900/60">
                   <img
-                    src="/cc.png"
+                    loading={isActive ? "eager" : "lazy"}
+                    src={loadImages ? "/cc.png" : undefined}
                     alt="CC Camera Installation, Repair and Maintenance in Phidim Panchthar"
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
@@ -304,10 +390,10 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
             {/* 2. AC Installation, Mounting & Gas Charging Graphic (newac.png, newac2.png, newac3.png) */}
             {(active.type === "ac_showcase_graphic" || active.type === "ac_install_graphic" || active.type === "ac_gas_graphic") && (
-              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Wind className="w-5 h-5 text-cyan-300 animate-pulse" />
+                    <Wind className="w-5 h-5 text-cyan-300" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       AC Servicing & Gas Refill
                     </span>
@@ -321,7 +407,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
                   {/* Featured Main Photo */}
                   <div className="col-span-7 relative rounded-xl overflow-hidden border border-white/20 shadow-md h-48 sm:h-56 md:h-60 group bg-slate-900/40">
                     <img
-                      src="/newac.png"
+                      loading={isActive ? "eager" : "lazy"}
+                      src={loadImages ? "/newac.png" : undefined}
                       alt="Inverter Split AC Installation in Phidim"
                       className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                     />
@@ -336,7 +423,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
                   <div className="col-span-5 flex flex-col gap-2.5">
                     <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-[90px] sm:h-[105px] md:h-[113px] group bg-slate-900/40">
                       <img
-                        src="/newac2.png"
+                        loading={isActive ? "eager" : "lazy"}
+                        src={loadImages ? "/newac2.png" : undefined}
                         alt="Outdoor Unit Bracket Mounting Phidim"
                         className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                       />
@@ -349,7 +437,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                     <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-[90px] sm:h-[105px] md:h-[113px] group bg-slate-900/40">
                       <img
-                        src="/newac3.png"
+                        loading={isActive ? "eager" : "lazy"}
+                        src={loadImages ? "/newac3.png" : undefined}
                         alt="AC Chemical Foam Wash and Gas Refill Phidim"
                         className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                       />
@@ -366,10 +455,10 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
             {/* 3. Washing Machine Repair & Management Graphic (washingmac.jpeg) */}
             {active.type === "washing_machine_graphic" && (
-              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-indigo-300 animate-pulse" />
+                    <Sparkles className="w-5 h-5 text-indigo-300" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       Washing Machine Repair & Care
                     </span>
@@ -381,7 +470,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                 <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-52 sm:h-60 md:h-64 group bg-slate-900/60">
                   <img
-                    src="/washingmac.jpeg"
+                    loading={isActive ? "eager" : "lazy"}
+                    src={loadImages ? "/washingmac.jpeg" : undefined}
                     alt="Washing Machine Repair, Motor and PCB Maintenance in Phidim Panchthar"
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
@@ -404,10 +494,10 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
             {/* 4. Inverter Repair & Management Graphic (invert.jpeg) */}
             {active.type === "inverter_graphic" && (
-              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-emerald-300 animate-pulse" />
+                    <Zap className="w-5 h-5 text-emerald-300" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       Inverter & Battery Management
                     </span>
@@ -419,7 +509,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                 <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-52 sm:h-60 md:h-64 group bg-slate-900/60">
                   <img
-                    src="/invert.jpeg"
+                    loading={isActive ? "eager" : "lazy"}
+                    src={loadImages ? "/invert.jpeg" : undefined}
                     alt="Inverter Repair, Battery Maintenance and UPS Setup in Phidim Panchthar"
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
@@ -445,7 +536,7 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
               <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-cyan-300 animate-pulse" />
+                    <ShieldCheck className="w-5 h-5 text-cyan-300" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       Refrigerator Gas Charging
                     </span>
@@ -457,7 +548,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                 <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-52 sm:h-60 md:h-64 group bg-slate-900/40">
                   <img
-                    src="/frggaschr.jpg"
+                    loading={isActive ? "eager" : "lazy"}
+                    src={loadImages ? "/frggaschr.jpg" : undefined}
                     alt="Refrigerator Gas Charging Phidim"
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
@@ -475,7 +567,7 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
               <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Wrench className="w-5 h-5 text-green-400 animate-pulse" />
+                    <Wrench className="w-5 h-5 text-green-400" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       Ceiling Fan & Electrical
                     </span>
@@ -487,7 +579,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                 <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-52 sm:h-60 md:h-64 group bg-slate-900/40">
                   <img
-                    src="/Ceilingfan1.jpg"
+                    loading={isActive ? "eager" : "lazy"}
+                    src={loadImages ? "/Ceilingfan1.jpg" : undefined}
                     alt="Ceiling Fan Repair Phidim"
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
@@ -505,7 +598,7 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
               <div className="relative w-full max-w-md lg:max-w-lg bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/30 text-white shadow-2xl space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Wifi className="w-5 h-5 text-cyan-300 animate-pulse" />
+                    <Wifi className="w-5 h-5 text-cyan-300" />
                     <span className="font-extrabold text-sm sm:text-base text-white">
                       DishHome DP Box & Fiber
                     </span>
@@ -517,7 +610,8 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
 
                 <div className="relative rounded-xl overflow-hidden border border-white/20 shadow-md h-52 sm:h-60 md:h-64 group bg-slate-900/60">
                   <img
-                    src="/image.png"
+                    loading={isActive ? "eager" : "lazy"}
+                    src={loadImages ? "/image.png" : undefined}
                     alt="DishHome DTH Official Connection Phidim"
                     className="w-full h-full object-contain sm:object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
@@ -535,36 +629,6 @@ export const HeroCarousel = ({ onExploreServices, onFiberSelect, onBookService }
         </div>
       </div>
 
-      {/* Slide Navigation Arrows */}
-      <button
-        onClick={prevSlide}
-        className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 hover:bg-black/60 text-white flex items-center justify-center transition-all z-20 cursor-pointer backdrop-blur-sm border border-white/20 hover:scale-110"
-        aria-label="Previous slide"
-      >
-        <ChevronLeft className="w-6 h-6" />
-      </button>
-
-      <button
-        onClick={nextSlide}
-        className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 hover:bg-black/60 text-white flex items-center justify-center transition-all z-20 cursor-pointer backdrop-blur-sm border border-white/20 hover:scale-110"
-        aria-label="Next slide"
-      >
-        <ChevronRight className="w-6 h-6" />
-      </button>
-
-      {/* Pagination Indicators */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
-        {slides.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrentSlide(idx)}
-            aria-label={`Go to slide ${idx + 1}`}
-            className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${
-              currentSlide === idx ? "bg-white w-6" : "bg-white/50 hover:bg-white/80"
-            }`}
-          />
-        ))}
-      </div>
-    </section>
+    </>
   );
-};
+}

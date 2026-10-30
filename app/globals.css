@@ -3,6 +3,49 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Home motion stays local to the home tab, including its shared chrome. */
+[data-home-motion="true"] :is(button, a) {
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-home-motion="true"] :is(button, a):focus-visible {
+  outline: 3px solid #22c55e;
+  outline-offset: 4px;
+}
+
+[data-home-motion="true"] :is(.animate-pulse, .animate-bounce, .animate-ping) {
+  animation: none;
+}
+
+[data-home-motion="true"] :is(button, a):active {
+  scale: 0.98;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-home-motion="true"] :is(button, a):hover {
+    translate: 0 -2px;
+  }
+  [data-home-motion="true"] :is(button, a) {
+    transition-property: color, background-color, border-color, opacity, box-shadow, transform, translate, scale;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-home-motion="true"] *,
+  [data-home-motion="true"] *::before,
+  [data-home-motion="true"] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  [data-home-motion="true"] :is(button, a) {
+    transform: none !important;
+    translate: none !important;
+    scale: none !important;
+  }
+}
+
 
 @keyframes slideRight {
   0% {
