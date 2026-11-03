@@ -38,6 +38,7 @@ function dashboardHarness(fetchBookings = async () => []) {
       };
       if (name === "@/context/AuthContext") return { useAuth: () => auth };
       if (name === "@/services/bookingService") return { fetchBookings };
+      if (name === "./TechnicianSearchPage") return { __esModule: true, default: () => React.createElement("section", null, "Booking flow") };
       if (name === "./BookingLiveLocationButton") return { __esModule: true, default: ({ bookingId }) => React.createElement("button", { "data-booking-id": bookingId }, "Show live location") };
       if (name === "lucide-react") return Object.fromEntries(["LogOut", "BriefcaseBusiness", "ChevronLeft", "ChevronRight", "Menu", "ShieldCheck", "X"].map(name => [name, () => null]));
       if (name.endsWith(".module.css")) return {};
@@ -177,4 +178,14 @@ test("sidebar can collapse and mobile navigation can open and close", () => {
   button("Open sidebar navigation").props.onClick();
   dashboard.tree().props.onKeyDown({ key: "Escape" });
   assert.equal(button("Open sidebar navigation").props["aria-expanded"], false);
+});
+
+test("Create Booking navigation opens the flow and refreshes bookings after creation", async () => {
+  const dashboard = dashboardHarness(); dashboard.mount(); await tick();
+  findElement(dashboard.tree(), e => e.props.title === "Create Booking").props.onClick();
+  assert.match(dashboard.html(), /Booking flow/);
+  assert.doesNotMatch(dashboard.html(), /No bookings yet/);
+  const flow = findElement(dashboard.tree(), e => e.props.embedded);
+  flow.props.onCreated(); flow.props.onViewBookings();
+  assert.match(dashboard.html(), /Loading bookings/);
 });

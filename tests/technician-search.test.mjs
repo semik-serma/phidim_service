@@ -25,7 +25,7 @@ const compiled = await compile('components/user-dashboard/TechnicianSearchPage.j
 const dashboardCompiled = await compile('components/user-dashboard/UserDashboardNewUI.js');
 const tech = { id: 10, userId: 10, name: 'ram sam', rating: 3, email: 'tech@example.test', phone: '9817926978', address: 'koshi, Nepal', avatar: '', isVerified: true, isKycVerified: true, services: [{ id: 25, name: 'House Wiring', description: 'Residential wiring services.' }] };
 const apiTechnician = { id: 10, first_name: 'ram', last_name: 'sam', email: 'tech@example.test', role: 't', is_verified: true, profile: { id: 9, user: 10, rating: 3, address: 'koshi, Nepal', phone_number: '9817926978', is_kyc_verified: true, services: tech.services, nagarita_front: '/media/private-document.jpg', certificate: '/media/certificate.jpg' } };
-const apiOptions = fetchImpl => ({ baseUrl: 'https://api.example.test', fetchImpl });
+const apiOptions = fetchImpl => ({ token: 'access-token', baseUrl: 'https://api.example.test', fetchImpl });
 function harness({ create = () => assert.fail('Unexpected booking request'), areas = async () => [{ id: 1, name: 'Phidim' }, { id: 2, name: 'Dharan' }], services = async () => [{ id: 25, name: 'House Wiring' }], search = async () => [tech], code = compiled, exported = 'default', props = {}, navigation = [], gps } = {}) {
   const hooks = [], effects = []; let cursor = 0;
   const module = { exports: {} };
@@ -40,7 +40,7 @@ function harness({ create = () => assert.fail('Unexpected booking request'), are
     if (name === 'react') return actualReact;
     if (name === 'next/link') return { __esModule: true, default: 'a' };
     if (name === 'next/navigation') return { useRouter: () => ({ push: url => navigation.push(url) }) };
-    if (name === '@/services/bookingService') return { fetchServiceAreas: areas, fetchServicesByArea: services, nepalDateTimeToUTC };
+    if (name === '@/services/bookingService') return { fetchServiceAreas: areas, fetchBookingServices: services, nepalDateTimeToUTC };
     if (name === '@/services/technicianSearchService') return { searchTechnicians: search };
     if (name === 'lucide-react') return new Proxy({}, { get: () => 'icon' });
     if (name === 'motion/react') return { motion: new Proxy({}, { get: (_, key) => key }), AnimatePresence: 'section' };
@@ -72,8 +72,9 @@ test('technician booking waits for precise coordinates and releases location wat
 
 async function ready(h) {
   h.render(); await tick(); let tree = h.render();
-  byId(tree, 'technician-area').props.onChange({ target: { value: '1' } }); h.render(); await tick(); tree = h.render();
-  byId(tree, 'technician-service').props.onChange({ target: { value: '25' } });
+  assert.equal(byId(tree, 'technician-area').props.disabled, true);
+  byId(tree, 'technician-service').props.onChange({ target: { value: '25' } }); h.render(); await tick(); tree = h.render();
+  byId(tree, 'technician-area').props.onChange({ target: { value: '1' } });
   return h.render();
 }
 const submitSearch = tree => nodes(tree).find(n => n.type === 'form').props.onSubmit({ preventDefault() {} });
@@ -83,6 +84,7 @@ test('search sends exact filters and maps backend profile fields without inventi
   const rows = await searchTechnicians({ serviceAreaId: 1, serviceId: 25 }, { ...apiOptions(async (url, options) => { request = { url, options }; return Response.json([apiTechnician]); }), signal: controller.signal });
   assert.equal(request.url, 'https://api.example.test/technicians/?service-area=1&service=25');
   assert.equal(request.options.signal, controller.signal);
+  assert.equal(request.options.headers.Authorization, 'Bearer access-token');
   assert.deepEqual(rows, [tech]);
   assert.equal(buildBookingPayload({ technicianId: rows[0].id, latitude: '27.16', longitude: '87.92', date: '2099-10-10', time: '10:30', notes: 'Repair needed' }).technician, 10);
   assert.equal(rows[0].avatar, ''); assert.equal(rows[0].reviewCount, undefined); assert.equal(rows[0].experienceYears, undefined);
@@ -132,9 +134,9 @@ test('search only runs on submit and cards open details and booking with fixed s
   await submitSearch(tree); tree = h.render(); assert.equal(calls.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0][0])), { serviceAreaId: 1, serviceId: 25 });
   assert.match(text(tree), /ram sam/);
-  button(tree, 'View Details').props.onClick(); tree = h.render(); assert.match(text(tree), /koshi, Nepal/); assert.match(text(tree), /9817926978/); assert.match(text(tree), /Residential wiring services/); assert.doesNotMatch(text(tree), /Sample profile|years of experience/);
+  button(tree, 'View Profile').props.onClick(); tree = h.render(); assert.match(text(tree), /koshi, Nepal/); assert.match(text(tree), /9817926978/); assert.match(text(tree), /Residential wiring services/); assert.doesNotMatch(text(tree), /Sample profile|years of experience/);
   nodes(tree).find(n => n.props.title === 'Technician details').props.onClose(); tree = h.render();
-  button(tree, 'Book Now').props.onClick(); tree = h.render();
+  button(tree, 'Book Technician').props.onClick(); tree = h.render();
   const booking = nodes(tree).find(n => n.type?.name === 'TechnicianBookingForm');
   assert.equal(booking.props.technician.id, tech.id); assert.equal(booking.props.area.id, 1); assert.equal(booking.props.service.id, 25); assert.equal(booking.props.initialNotes, 'Camera has no video');
   h.unmount();
@@ -151,31 +153,32 @@ test('cards handle missing ratings and photos without displaying fabricated revi
   h.unmount();
 });
 
-test('changing filters cancels pending searches and services; late results cannot appear', async () => {
-  const searches = [], serviceRequests = [];
-  const h = harness({ services: (id, { signal }) => { const p = deferred(); serviceRequests.push({ id, signal, ...p }); return p.promise; }, search: (criteria, { signal }) => { const p = deferred(); searches.push({ signal, ...p }); return p.promise; } });
+test('changing service cancels pending area loads and changing area cancels searches', async () => {
+  const areas = [], searches = [];
+  const h = harness({ areas: ({signal}) => { const p = deferred(); areas.push({signal, ...p}); return p.promise; }, search: (_, {signal}) => {const p = deferred(); searches.push({signal, ...p}); return p.promise;} });
   h.render(); await tick(); let tree = h.render();
-  byId(tree, 'technician-area').props.onChange({ target: { value: '1' } }); h.render();
-  tree = h.render(); byId(tree, 'technician-area').props.onChange({ target: { value: '2' } }); h.render();
-  assert.equal(serviceRequests[0].signal.aborted, true);
-  serviceRequests[0].resolve([{ id: 99, name: 'Wrong area' }]); serviceRequests[1].resolve([{ id: 25, name: 'House Wiring' }]); await tick(); tree = h.render();
-  assert.doesNotMatch(text(tree), /Wrong area/); assert.equal(byId(tree, 'technician-service').props.value, '');
-  byId(tree, 'technician-service').props.onChange({ target: { value: '25' } }); tree = h.render(); const pending = submitSearch(tree); tree = h.render();
-  assert.equal(button(tree, 'Search').props.disabled, true);
-  byId(tree, 'technician-area').props.onChange({ target: { value: '1' } }); tree = h.render();
-  assert.equal(searches[0].signal.aborted, true); searches[0].resolve([tech]); await pending; tree = h.render();
-  assert.doesNotMatch(text(tree), /ram sam/); assert.equal(byId(tree, 'technician-service').props.value, ''); h.unmount();
+  byId(tree, 'technician-service').props.onChange({target: {value: '25'}}); h.render();
+  tree = h.render(); byId(tree, 'technician-service').props.onChange({target: {value: ''}}); h.render();
+  assert.equal(areas[0].signal.aborted, true);
+  areas[0].resolve([{id: 99, name: 'Stale area'}]); await tick(); tree = h.render();
+  assert.doesNotMatch(text(tree), /Stale area/);
+  byId(tree, 'technician-service').props.onChange({target: {value: '25'}}); h.render();
+  areas[1].resolve([{id: 1, name: 'Phidim'}, {id: 2, name: 'Dharan'}]); await tick(); tree = h.render();
+  byId(tree, 'technician-area').props.onChange({target: {value: '1'}}); tree = h.render(); const pending = submitSearch(tree);
+  tree = h.render(); byId(tree, 'technician-area').props.onChange({target: {value: '2'}});
+  assert.equal(searches[0].signal.aborted, true); searches[0].resolve([tech]); await pending;
+  assert.doesNotMatch(text(h.render()), /ram sam/); h.unmount();
 });
 
 test('API failures and empty results show recovery states', async () => {
   let areaCalls = 0, serviceCalls = 0, searchCalls = 0;
-  const h = harness({ areas: async () => { if (++areaCalls === 1) throw Error('Area offline'); return [{ id: 1, name: 'Phidim' }]; }, services: async () => { if (++serviceCalls === 1) throw Error('Services offline'); return [{ id: 25, name: 'House Wiring' }]; }, search: async () => { if (++searchCalls === 1) throw Error('Search offline'); return []; } });
-  h.render(); await tick(); let tree = h.render(); assert.match(text(tree), /Area offline/);
-  button(tree, 'Retry service areas').props.onClick(); h.render(); await tick(); tree = h.render();
-  byId(tree, 'technician-area').props.onChange({ target: { value: '1' } }); h.render(); await tick(); tree = h.render(); assert.match(text(tree), /Services offline/);
+  const h = harness({ areas: async () => { if (++areaCalls === 1) throw Error('Area offline'); return [{id: 1, name: 'Phidim'}]; }, services: async () => {if (++serviceCalls === 1) throw Error('Services offline'); return [{id: 25, name: 'House Wiring'}];}, search: async () => {if (++searchCalls === 1) throw Error('Search offline'); return [];} });
+  h.render(); await tick(); let tree = h.render(); assert.match(text(tree), /Services offline/);
   button(tree, 'Retry services').props.onClick(); h.render(); await tick(); tree = h.render();
-  byId(tree, 'technician-service').props.onChange({ target: { value: '25' } }); tree = h.render(); await submitSearch(tree); tree = h.render(); assert.match(text(tree), /Search offline/);
-  await button(tree, 'Retry search').props.onClick(); tree = h.render(); assert.match(text(tree), /No technicians found/); h.unmount();
+  byId(tree, 'technician-service').props.onChange({target: {value: '25'}}); h.render(); await tick(); tree = h.render(); assert.match(text(tree), /Area offline/);
+  button(tree, 'Retry service areas').props.onClick(); h.render(); await tick(); tree = h.render();
+  byId(tree, 'technician-area').props.onChange({target: {value: '1'}}); tree = h.render(); await submitSearch(tree); tree = h.render(); assert.match(text(tree), /Search offline/);
+  await button(tree, 'Retry search').props.onClick(); assert.match(text(h.render()), /No technicians found/); h.unmount();
 });
 
 test('booking validates inputs, awaits server creation, prevents duplicates, and retries failures', async () => {
@@ -211,11 +214,6 @@ test('booking validates inputs, awaits server creation, prevents duplicates, and
   assert.equal(nodes(tree).some(n => n.type === 'form'), false); h.unmount();
 });
 
-test('dashboard booking buttons navigate to search and assistant notes survive navigation', () => {
-  const navigation = []; const h = harness({ code: dashboardCompiled, navigation }); let tree = h.render();
-  for (const label of ['Book New Service', 'Book Service', 'Book a Technician', 'Instant Book']) button(tree, label).props.onClick();
-  assert.deepEqual(navigation, Array(4).fill('/user/book-service'));
-  nodes(tree).find(n => n.type === 'button' && text(n).includes('Support Center')).props.onClick(); tree = h.render();
-  nodes(tree).find(n => n.type === 'button' && text(n).includes('My Split AC is leaking')).props.onClick();
-  assert.match(navigation.at(-1), /^\/user\/book-service\?notes=/); assert.match(decodeURIComponent(navigation.at(-1)), /My Split AC is leaking/); h.unmount();
+test('technician search requires a token before sending a request', async () => {
+  await assert.rejects(searchTechnicians({serviceAreaId: 1, serviceId: 25}, {token: '', fetchImpl: () => assert.fail('Must not send')}), /sign in/);
 });

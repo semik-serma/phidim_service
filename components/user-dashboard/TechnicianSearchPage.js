@@ -6,8 +6,6 @@ import {
   ArrowLeft,
   Search,
   Star,
-  MapPin,
-  Wrench,
   X,
   CheckCircle2,
   LoaderCircle,
@@ -15,7 +13,7 @@ import {
 } from "lucide-react";
 import {
   fetchServiceAreas,
-  fetchServicesByArea,
+  fetchBookingServices,
   nepalDateTimeToUTC,
 } from "@/services/bookingService";
 import { searchTechnicians } from "@/services/technicianSearchService";
@@ -118,6 +116,8 @@ export function TechnicianBookingForm({
   area,
   service,
   initialNotes = "",
+  onCreated,
+  onViewBookings,
 }) {
   const { user } = useAuth();
   const [confirmed, setConfirmed] = useState(null);
@@ -211,7 +211,7 @@ export function TechnicianBookingForm({
         customerEmail: user?.email || "",
         customerPhone: user?.phone || "",
       });
-      if (active.current) setConfirmed(saved);
+      if (active.current) { setConfirmed(saved); onCreated?.(saved); }
     } catch (err) {
       if (active.current)
         setError(err.message || "Unable to create booking. Please try again.");
@@ -239,9 +239,7 @@ export function TechnicianBookingForm({
             Booking #{confirmed.id} with {technician.name} has been created.
             Status: {confirmed.status}.
           </p>
-          <Link href="/user/requests" className={secondaryClass}>
-            View my bookings
-          </Link>
+          {onViewBookings ? <button type="button" onClick={onViewBookings} className={secondaryClass}>View my bookings</button> : <Link href="/user/dashboard" className={secondaryClass}>View my bookings</Link>}
         </div>
       ) : (
         <form onSubmit={confirm} className="space-y-4">
@@ -362,16 +360,11 @@ export function TechnicianBookingForm({
   );
 }
 
-export default function TechnicianSearchPage({ initialNotes = "" }) {
+export default function TechnicianSearchPage({ initialNotes = "", embedded = false, onCreated, onViewBookings }) {
   const [areas, setAreas] = useState({ rows: [], loading: true, error: "" });
   const [areaId, setAreaId] = useState("");
   const [areaRetry, setAreaRetry] = useState(0);
-  const [services, setServices] = useState({
-    areaId: "",
-    rows: [],
-    loading: false,
-    error: "",
-  });
+  const [services, setServices] = useState({ rows: [], loading: true, error: "" });
   const [serviceId, setServiceId] = useState("");
   const [serviceRetry, setServiceRetry] = useState(0);
   const [results, setResults] = useState({
@@ -385,6 +378,7 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
   useEffect(() => {
     const controller = new AbortController();
     setAreas({ rows: [], loading: true, error: "" });
+    if (!serviceId) { setAreas({ rows: [], loading: false, error: "" }); return () => controller.abort(); }
     fetchServiceAreas({ signal: controller.signal })
       .then((rows) => {
         if (!controller.signal.aborted)
@@ -399,28 +393,18 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
           });
       });
     return () => controller.abort();
-  }, [areaRetry]);
+  }, [serviceId, areaRetry]);
 
   useEffect(() => {
-    if (!areaId) return;
     const controller = new AbortController();
-    setServices({ areaId, rows: [], loading: true, error: "" });
-    fetchServicesByArea(areaId, { signal: controller.signal })
-      .then((rows) => {
-        if (!controller.signal.aborted)
-          setServices({ areaId, rows, loading: false, error: "" });
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted)
-          setServices({
-            areaId,
-            rows: [],
-            loading: false,
-            error: err.message || "Unable to load services.",
-          });
-      });
+    setServices({ rows: [], loading: true, error: "" });
+    fetchBookingServices({ signal: controller.signal }).then(rows => {
+      if (!controller.signal.aborted) setServices({ rows, loading: false, error: "" });
+    }).catch(err => {
+      if (!controller.signal.aborted) setServices({ rows: [], loading: false, error: err.message || "Unable to load services." });
+    });
     return () => controller.abort();
-  }, [areaId, serviceRetry]);
+  }, [serviceRetry]);
   useEffect(() => () => searchRequest.current?.abort(), []);
 
   function clearResults() {
@@ -428,11 +412,8 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
     setResults({ status: "idle", rows: [], error: "" });
   }
   const area = areas.rows.find((row) => String(row.id) === areaId);
-  const matchingServices = services.areaId === areaId;
-  const service = matchingServices
-    ? services.rows.find((row) => String(row.id) === serviceId)
-    : null;
-  const servicesLoading = !!areaId && (!matchingServices || services.loading);
+  const service = services.rows.find(row => String(row.id) === serviceId);
+  const servicesLoading = services.loading;
   const canSearch =
     !!area &&
     !!service &&
@@ -468,24 +449,24 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#0b0b0f] px-4 py-6 text-[#ededed] sm:px-8 lg:py-10">
+    <section aria-label="Create booking" className={(embedded ? "rounded-2xl " : "min-h-screen ") + "bg-[#0b0b0f] px-4 py-6 text-[#ededed] sm:px-8 lg:py-10"}>
       <div className="mx-auto max-w-6xl">
-        <Link
+        {!embedded && <Link
           href="/user/dashboard"
           className="mb-8 inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white"
         >
           <ArrowLeft size={16} />
           Back to dashboard
-        </Link>
+        </Link>}
         <header className="mb-7">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
             At your doorstep
           </span>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Find your technician
+            Create Booking
           </h1>
           <p className="mt-3 text-sm text-neutral-400">
-            Choose your area and service to find the right person for the job.
+            Select a service, then your service area to find and book a technician.
           </p>
         </header>
         <form
@@ -494,129 +475,26 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
         >
           <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[1fr_1fr_auto]">
             <div className="space-y-2">
-              <label
-                htmlFor="technician-area"
-                className="flex items-center gap-2 text-sm font-medium"
-              >
-                <MapPin size={15} className="text-neutral-400" />
-                Select service area
-              </label>
-              <select
-                id="technician-area"
-                required
-                value={areaId}
-                disabled={areas.loading || !!areas.error}
-                onChange={(e) => {
-                  clearResults();
-                  setAreaId(e.target.value);
-                  setServiceId("");
-                  setServices({
-                    areaId: "",
-                    rows: [],
-                    loading: false,
-                    error: "",
-                  });
-                }}
-                className={inputClass}
-              >
-                <option value="">
-                  {areas.loading
-                    ? "Loading service areas…"
-                    : "Select a service area"}
-                </option>
-                {areas.rows.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
+              <label htmlFor="technician-service" className="block text-sm font-medium">1. Select service</label>
+              <select id="technician-service" required value={serviceId} disabled={servicesLoading || !!services.error}
+                onChange={e => { clearResults(); setDialog(null); setServiceId(e.target.value); setAreaId(""); setAreas({ rows: [], loading: true, error: "" }); }} className={inputClass}>
+                <option value="">{servicesLoading ? "Loading services…" : "Select a service"}</option>
+                {services.rows.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
               </select>
-              {areas.error && (
-                <p role="alert" className="text-xs text-red-300">
-                  {areas.error}
-                </p>
-              )}
-              {!areas.loading && !areas.error && !areas.rows.length && (
-                <p role="status" className="text-xs text-neutral-400">
-                  No service areas are available.
-                </p>
-              )}
-              {(areas.error || (!areas.loading && !areas.rows.length)) && (
-                <button
-                  type="button"
-                  onClick={() => setAreaRetry((value) => value + 1)}
-                  className="text-xs underline"
-                >
-                  Retry service areas
-                </button>
-              )}
+              {services.error && <p role="alert" className="text-sm text-red-300">{services.error}</p>}
+              {!servicesLoading && !services.error && !services.rows.length && <p role="status">No services are available.</p>}
+              {(services.error || (!servicesLoading && !services.rows.length)) && <button type="button" onClick={() => { clearResults(); setServiceId(""); setAreaId(""); setServiceRetry(v => v + 1); }} className="text-sm underline">Retry services</button>}
             </div>
             <div className="space-y-2">
-              <label
-                htmlFor="technician-service"
-                className="flex items-center gap-2 text-sm font-medium"
-              >
-                <Wrench size={15} className="text-neutral-400" />
-                Select service
-              </label>
-              <select
-                id="technician-service"
-                required
-                value={serviceId}
-                disabled={
-                  !area ||
-                  servicesLoading ||
-                  !matchingServices ||
-                  !!services.error ||
-                  !services.rows.length
-                }
-                onChange={(e) => {
-                  clearResults();
-                  setServiceId(e.target.value);
-                }}
-                className={inputClass}
-              >
-                <option value="">
-                  {!areaId
-                    ? "Select a service area first"
-                    : servicesLoading
-                      ? "Loading services…"
-                      : "Select a service"}
-                </option>
-                {matchingServices &&
-                  services.rows.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.name}
-                    </option>
-                  ))}
+              <label htmlFor="technician-area" className="block text-sm font-medium">2. Select service area</label>
+              <select id="technician-area" required value={areaId} disabled={!service || areas.loading || !!areas.error}
+                onChange={e => { clearResults(); setDialog(null); setAreaId(e.target.value); }} className={inputClass}>
+                <option value="">{!service ? "Select a service first" : areas.loading ? "Loading service areas…" : "Select a service area"}</option>
+                {areas.rows.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
               </select>
-              {matchingServices && services.error && (
-                <p role="alert" className="text-xs text-red-300">
-                  {services.error}
-                </p>
-              )}
-              {areaId &&
-                matchingServices &&
-                !services.loading &&
-                !services.error &&
-                !services.rows.length && (
-                  <p role="status" className="text-xs text-neutral-400">
-                    No services are available in this area.
-                  </p>
-                )}
-              {matchingServices &&
-                (services.error ||
-                  (areaId && !services.loading && !services.rows.length)) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearResults();
-                      setServiceRetry((value) => value + 1);
-                    }}
-                    className="text-xs underline"
-                  >
-                    Retry services
-                  </button>
-                )}
+              {areas.error && <p role="alert" className="text-sm text-red-300">{areas.error}</p>}
+              {service && !areas.loading && !areas.error && !areas.rows.length && <p role="status">No service areas are available.</p>}
+              {service && (areas.error || (!areas.loading && !areas.rows.length)) && <button type="button" onClick={() => { clearResults(); setAreaId(""); setAreaRetry(v => v + 1); }} className="text-sm underline">Retry service areas</button>}
             </div>
             <button
               type="submit"
@@ -642,7 +520,7 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
               <Search size={28} className="mx-auto mb-4 text-neutral-500" />
               <h2 className="font-medium">Your next repair starts here</h2>
               <p className="mt-2 text-sm text-neutral-400">
-                Select an area and service, then search for technicians.
+                Select a service and service area, then search for technicians.
               </p>
             </div>
           )}
@@ -713,18 +591,18 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
                         <button
                           type="button"
                           onClick={() => openDialog("book", technician)}
-                          aria-label={"Book now with " + technician.name}
+                          aria-label={"Book technician " + technician.name}
                           className={primaryClass + " px-3"}
                         >
-                          Book Now
+                          Book Technician
                         </button>
                         <button
                           type="button"
                           onClick={() => openDialog("details", technician)}
-                          aria-label={"View details for " + technician.name}
+                          aria-label={"View profile for " + technician.name}
                           className={secondaryClass + " px-3"}
                         >
-                          View Details
+                          View Profile
                         </button>
                       </div>
                     </article>
@@ -749,6 +627,8 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
               area={dialog.area}
               service={dialog.service}
               initialNotes={initialNotes}
+              onCreated={onCreated}
+              onViewBookings={onViewBookings}
             />
           ) : (
             <div className="space-y-5">
@@ -821,6 +701,6 @@ export default function TechnicianSearchPage({ initialNotes = "" }) {
           )}
         </Dialog>
       )}
-    </main>
+    </section>
   );
 }

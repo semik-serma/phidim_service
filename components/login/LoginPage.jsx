@@ -87,11 +87,10 @@ function loginDestination(fallback) {
 }
 
 export default function LoginPage() {
-  const { user, isAuthenticated, login, register, loginWithGoogle, updateUser } = useAuth();
+  const { user, isAuthenticated, login, loginWithGoogle, updateUser } = useAuth();
   const router = useRouter();
 
   const [role, setRole] = useState('USER'); // 'USER' | 'TECHNICIAN' | 'ADMIN'
-  const [techMode, setTechMode] = useState('LOGIN'); // 'LOGIN' | 'REGISTER'
   const [showAdminMenu, setShowAdminMenu] = useState(false);
 
   // If already authenticated, redirect immediately to their dashboard
@@ -115,9 +114,6 @@ export default function LoginPage() {
   // Technician fields
   const [techIdOrPhone, setTechIdOrPhone] = useState('');
   const [techPassword, setTechPassword] = useState('');
-  const [techFullName, setTechFullName] = useState('');
-  const [techWard, setTechWard] = useState('Phidim Ward 1 (Main Bazar)');
-  const [techSpecialty, setTechSpecialty] = useState('LAN Networking & Fiber Splicing');
 
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -217,9 +213,6 @@ export default function LoginPage() {
     } else if (techPassword.length < 6) {
       errors.techPassword = 'Password must be at least 6 characters.';
     }
-    if (techMode === 'REGISTER' && !techFullName.trim()) {
-      errors.techFullName = 'Full name is required for registration.';
-    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -275,27 +268,12 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       const idOrPhone = techIdOrPhone.trim();
-      let account;
-
-      if (techMode === 'LOGIN') {
-        account = await login({
-          emailOrPhone: idOrPhone,
-          password: techPassword,
-          rememberMe,
-          role: 'TECHNICIAN',
-        });
-      } else {
-        const cleanEmail = idOrPhone.includes('@')
-          ? idOrPhone
-          : `${idOrPhone.toLowerCase().replace(/[^a-z0-9]/g, '')}@phidim.np`;
-        account = await register({
-          name: techFullName || 'Field Technician',
-          email: cleanEmail,
-          phone: idOrPhone,
-          password: techPassword,
-          role: 'TECHNICIAN',
-        });
-      }
+      const account = await login({
+        emailOrPhone: idOrPhone,
+        password: techPassword,
+        rememberMe,
+        role: 'TECHNICIAN',
+      });
 
       toast.success(`Welcome Technician ${account.name}! Redirecting to Technician Dashboard...`);
       if (typeof window !== 'undefined') {
@@ -496,7 +474,7 @@ export default function LoginPage() {
               {role === 'USER'
                 ? '⚠️ Warning: Backend Development in Progress'
                 : role === 'TECHNICIAN'
-                  ? 'Fill out your technician identity & assigned ward details to launch your Technician Command Interface.'
+                  ? 'Sign in with your technician account to manage your bookings.'
                   : 'Authenticate with master admin credentials to manage Phidim Service operations & users.'}
             </p>
           </div>
@@ -699,47 +677,10 @@ export default function LoginPage() {
           {/* ================= FORM 2: FIELD TECHNICIAN ================= */}
           {role === 'TECHNICIAN' && (
             <form onSubmit={handleTechSubmit} className="space-y-4" noValidate>
-              {/* Tech Login / Register Mode Switch */}
-              <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 pl-1">
-                  <HardHat className="w-4 h-4 text-emerald-600" />
-                  <span>{techMode === 'LOGIN' ? 'Technician Sign In' : 'Register Field Installer'}</span>
-                </span>
-                <div className="flex items-center gap-1 text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setTechMode('LOGIN')}
-                    className={`px-3 py-1 rounded-lg transition-all ${techMode === 'LOGIN' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                  >
-                    Tech Login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTechMode('REGISTER')}
-                    className={`px-3 py-1 rounded-lg transition-all ${techMode === 'REGISTER' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                  >
-                    Tech Register
-                  </button>
-                </div>
+              <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <HardHat className="w-4 h-4 text-emerald-600" />
+                <span>Technician Sign In</span>
               </div>
-
-              {/* Technician Register Fields */}
-              {techMode === 'REGISTER' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Technician Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Rai"
-                    value={techFullName}
-                    onChange={(e) => setTechFullName(e.target.value)}
-                    className="w-full px-4 py-3 text-xs border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-600 font-semibold"
-                  />
-                  {fieldErrors.techFullName && <p className="text-[11px] text-rose-600 font-bold mt-1">{fieldErrors.techFullName}</p>}
-                </div>
-              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -758,39 +699,6 @@ export default function LoginPage() {
                 />
                 {fieldErrors.techIdOrPhone && <p className="text-[11px] text-rose-600 font-bold mt-1">{fieldErrors.techIdOrPhone}</p>}
               </div>
-
-              {techMode === 'REGISTER' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Primary Service Area Ward</label>
-                    <select
-                      value={techWard}
-                      onChange={(e) => setTechWard(e.target.value)}
-                      className="w-full px-4 py-3 text-xs border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-600 font-semibold bg-white"
-                    >
-                      <option value="Phidim Ward 1 (Main Bazar)">Phidim Ward 1 (Main Bazar)</option>
-                      <option value="Phidim Ward 2 (Buspark Area)">Phidim Ward 2 (Buspark Area)</option>
-                      <option value="Phidim Ward 3 (Bharapa Area)">Phidim Ward 3 (Bharapa Area)</option>
-                      <option value="Phidim Ward 4 (Chokmagu Area)">Phidim Ward 4 (Chokmagu Area)</option>
-                      <option value="Panchthar Rural District Coverage">Panchthar Rural District Coverage</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Technical Specialization</label>
-                    <select
-                      value={techSpecialty}
-                      onChange={(e) => setTechSpecialty(e.target.value)}
-                      className="w-full px-4 py-3 text-xs border border-slate-300 rounded-xl focus:outline-none focus:border-emerald-600 font-semibold bg-white"
-                    >
-                      <option value="LAN Networking & Fiber Splicing">LAN Networking & Fiber Splicing</option>
-                      <option value="CCTV Security Camera Setup">CCTV Security Camera Setup</option>
-                      <option value="DishHome DTH Technician">DishHome DTH Technician</option>
-                      <option value="Electrical & Smart Home Wiring">Electrical & Smart Home Wiring</option>
-                    </select>
-                  </div>
-                </>
-              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
@@ -821,10 +729,16 @@ export default function LoginPage() {
                 ) : (
                   <span className="flex items-center gap-2">
                     <Wrench className="w-4 h-4 text-emerald-400" />
-                    <span>{techMode === 'LOGIN' ? 'CONTINUE TO TECHNICIAN DASHBOARD' : 'REGISTER NEW TECHNICIAN'}</span>
+                    <span>CONTINUE TO TECHNICIAN DASHBOARD</span>
                   </span>
                 )}
               </button>
+              <p className="text-center text-xs text-slate-500 font-medium">
+                Don&apos;t have an account?{' '}
+                <Link href="/register" className="text-emerald-600 font-extrabold hover:underline">
+                  Register here
+                </Link>
+              </p>
             </form>
           )}
 

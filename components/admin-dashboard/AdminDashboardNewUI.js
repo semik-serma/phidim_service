@@ -537,9 +537,9 @@ export default function AdminDashboardNewUI() {
       {/* ========================================================================= */}
       {/* 1. TOP GREEN HEADER BAR (Glassmorphism)                                    */}
       {/* ========================================================================= */}
-      <header className="h-[52px] sm:h-[56px] glass-effect-header text-white px-3 sm:px-6 flex items-center justify-between shadow-md relative z-40 flex-shrink-0">
+      <header className="h-[52px] sm:h-[56px] glass-effect-header text-white px-3 sm:px-6 flex items-center justify-between gap-2 shadow-md relative z-40 flex-shrink-0">
         {/* Left: App Title + Role Badge */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setMobileContactsOpen(!mobileContactsOpen)}
             className="lg:hidden p-1.5 rounded-xl bg-emerald-800/70 hover:bg-emerald-700 text-white backdrop-blur-md transition-all"
@@ -547,7 +547,7 @@ export default function AdminDashboardNewUI() {
           >
             <Users size={18} />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white font-black shadow-inner border border-white/25">
               <ShieldCheck size={18} className="text-white drop-shadow" />
             </div>
@@ -575,7 +575,7 @@ export default function AdminDashboardNewUI() {
         </div>
 
         {/* Right Actions: Switch to User View & Main Site */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/user/dashboard"
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-900/90 hover:bg-emerald-800 text-white text-xs font-bold border border-emerald-500/40 transition-colors shadow-sm"
@@ -586,10 +586,10 @@ export default function AdminDashboardNewUI() {
           </Link>
           <Link
             href="/"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-800/80 hover:bg-emerald-700 text-white text-xs font-semibold border border-emerald-600/40 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-800/80 hover:bg-emerald-700 text-white text-xs font-semibold border border-emerald-600/40 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
-            <Home size={13} />
-            <span>Main Site</span>
+            <Home size={13} aria-hidden="true" />
+            <span>Back to Home</span>
           </Link>
         </div>
       </header>

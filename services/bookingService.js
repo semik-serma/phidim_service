@@ -1,7 +1,7 @@
 import { djangoFetch } from "../lib/djangoClient.js";
 const API_BASE = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
-function readToken() {
+export function readToken() {
   if (typeof document === "undefined") return "";
   const cookie = document.cookie.split(";").map(part => part.trim()).find(part => part.startsWith("phidim_access_token="));
   return cookie ? decodeURIComponent(cookie.slice("phidim_access_token=".length)) : "";
@@ -58,8 +58,9 @@ export async function updateTechnicianBooking(bookingId, status, { token = readT
 }
 
 export async function fetchServiceAreas({ token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
+  if (!token) throw new Error("Please sign in again to load service areas.");
   const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/service-areas/", {
-    signal, ...(token ? { headers: { Authorization: "Bearer " + token } } : {}),
+    signal, cache: "no-store", redirect: "error", headers: { Authorization: "Bearer " + token },
   });
   if (!response.ok) throw new Error(await errorMessage(response, "Unable to load service areas. Please retry."));
   const data = await response.json();
@@ -68,6 +69,28 @@ export async function fetchServiceAreas({ token = readToken(), baseUrl = API_BAS
     throw new Error("Invalid service area response.");
   }
   return rows;
+}
+
+export async function fetchBookingServices({ token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
+  if (!token) throw new Error("Please sign in again to load services.");
+  let url = new URL(baseUrl.replace(/\/+$/, "") + "/services/");
+  const origin = url.origin;
+  const seen = new Set();
+  const rows = new Map();
+  while (url) {
+    if (url.origin !== origin || seen.has(url.href)) throw new Error("Invalid services pagination.");
+    seen.add(url.href);
+    const response = await fetchImpl(url.href, { signal, cache: "no-store", redirect: "error", headers: { Authorization: "Bearer " + token } });
+    if (!response.ok) throw new Error(await errorMessage(response, "Unable to load services. Please retry."));
+    const data = await response.json();
+    const page = Array.isArray(data) ? data : data?.results;
+    if (!Array.isArray(page) || page.some(row => !Number.isSafeInteger(row?.id) || row.id <= 0 || typeof row.name !== "string" || !row.name.trim())) throw new Error("Invalid services response.");
+    page.forEach(row => rows.set(row.id, row));
+    const next = !Array.isArray(data) && data.next;
+    if (next != null && next !== false && typeof next !== "string") throw new Error("Invalid services pagination.");
+    url = next ? new URL(next, url) : null;
+  }
+  return [...rows.values()];
 }
 
 export async function fetchServicesByArea(serviceAreaId, { token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {

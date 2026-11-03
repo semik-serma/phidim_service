@@ -5,6 +5,7 @@ import { BriefcaseBusiness, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck
 import { useAuth } from "@/context/AuthContext";
 import { fetchBookings } from "@/services/bookingService";
 import BookingLiveLocationButton from "./BookingLiveLocationButton";
+import TechnicianSearchPage from "./TechnicianSearchPage";
 import styles from "./UserDashboardNewUI.module.css";
 
 function technicianName(technician) {
@@ -30,6 +31,7 @@ export default function UserDashboardNewUI() {
   const [bookingState, setBookingState] = useState({ owner: null, revision: -1, bookings: [], loading: true, error: "" });
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [tab, setTab] = useState("bookings");
   const current = owner && bookingState.owner === owner && bookingState.revision === revision;
   const bookings = current ? bookingState.bookings : [];
   const loading = !current || bookingState.loading;
@@ -65,8 +67,11 @@ export default function UserDashboardNewUI() {
           <button type="button" className={styles.closeButton} onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={19} /></button>
         </div>
         <nav aria-label="User dashboard navigation" className={styles.navigation}>
-          <a href="#my-bookings" aria-current="page" className={styles.activeLink} onClick={() => setMobileOpen(false)} title="My Bookings">
+          <a href="#my-bookings" aria-current={tab === "bookings" ? "page" : undefined} className={tab === "bookings" ? styles.activeLink : styles.navLink} onClick={() => { setTab("bookings"); setMobileOpen(false); }} title="My Bookings">
             <BriefcaseBusiness size={20} aria-hidden="true" /><span>My Bookings</span>
+          </a>
+          <a href="#create-booking" aria-current={tab === "create" ? "page" : undefined} className={tab === "create" ? styles.activeLink : styles.navLink} onClick={() => { setTab("create"); setMobileOpen(false); }} title="Create Booking">
+            <BriefcaseBusiness size={20} aria-hidden="true" /><span>Create Booking</span>
           </a>
           <button type="button" onClick={logout} className={styles.logout} aria-label="Logout" title="Logout">
             <LogOut size={19} aria-hidden="true" /><span>Logout</span>
@@ -78,8 +83,13 @@ export default function UserDashboardNewUI() {
         <header className={styles.topbar}>
           <button type="button" className={styles.menuButton} onClick={() => setMobileOpen(true)} aria-label="Open sidebar navigation" aria-expanded={mobileOpen} aria-controls="user-dashboard-sidebar"><Menu size={20} /></button>
           <span>User Dashboard</span>
+          <a href="/" className={styles.homeButton}>
+            <ChevronLeft size={16} aria-hidden="true" />Back to Home
+          </a>
         </header>
         <main className={styles.content}>
+        {tab === "create" && <div id="create-booking"><TechnicianSearchPage key={owner} embedded onCreated={() => setRevision(value => value + 1)} onViewBookings={() => setTab("bookings")} /></div>}
+        {tab === "bookings" && (
         <section id="my-bookings" aria-labelledby="my-bookings-title" className={styles.card}>
           <div className={styles.cardHeader}>
             <span className={styles.bookingIcon}><BriefcaseBusiness size={24} aria-hidden="true" /></span>
@@ -130,6 +140,7 @@ export default function UserDashboardNewUI() {
             </div>
           )}
         </section>
+        )}
       </main>
       </div>
     </div>

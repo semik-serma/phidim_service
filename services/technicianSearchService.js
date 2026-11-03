@@ -1,4 +1,5 @@
 import { djangoFetch, djangoBrowserUrl } from "../lib/djangoClient.js";
+import { readToken } from "./bookingService.js";
 const API_BASE = (process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function normalizeTechnician(row, baseUrl) {
@@ -30,13 +31,14 @@ function normalizeTechnician(row, baseUrl) {
 
 export async function searchTechnicians(
   { serviceAreaId, serviceId },
-  { baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {},
+  { token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {},
 ) {
   const area = Number(serviceAreaId);
   const service = Number(serviceId);
   if (!Number.isSafeInteger(area) || area <= 0 || !Number.isSafeInteger(service) || service <= 0) {
     throw new Error("Select a valid service area and service.");
   }
+  if (!token) throw new Error("Please sign in again to find technicians.");
   const base = baseUrl.replace(/\/+$/, "");
   let url = new URL(base + "/technicians/");
   const origin = url.origin;
@@ -48,7 +50,7 @@ export async function searchTechnicians(
     url.searchParams.set("service", String(service));
     if (seen.has(url.href)) throw new Error("Invalid technician pagination.");
     seen.add(url.href);
-    const response = await fetchImpl(url.href, { signal });
+    const response = await fetchImpl(url.href, { signal, cache: "no-store", redirect: "error", headers: { Authorization: "Bearer " + token } });
     if (!response.ok) {
       const error = await response.json().catch(() => null);
       if (response.status === 401) throw new Error("Your session expired. Please sign in again.");

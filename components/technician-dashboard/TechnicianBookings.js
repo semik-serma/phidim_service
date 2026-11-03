@@ -58,8 +58,11 @@ export function TechnicianBookings() {
     if (!owner || !shareBooking || !shareConfirmed) return;
     let active = true;
     let socket;
-    let sendInterval;
-    const stopSending = () => clearInterval(sendInterval);
+    let watchId;
+    const stopSending = () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      watchId = undefined;
+    };
     setConnectionStatus("connecting");
     try {
       const tokenCookie = document.cookie.split(";").map(part => part.trim())
@@ -69,22 +72,37 @@ export function TechnicianBookings() {
         setConnectionStatus("unauthenticated");
         return;
       }
-      const query = new URLSearchParams({ token });
-      socket = new WebSocket(`ws://127.0.0.1:8000/ws/share-location/${shareBooking.id}/?${query}`);
+      if (!window.isSecureContext || !navigator.geolocation?.watchPosition) {
+        setConnectionStatus("location-error");
+        return;
+      }
+      const url = new URL(process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000");
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      url.pathname = `/ws/share-location/${shareBooking.id}/`;
+      url.search = new URLSearchParams({ token }).toString();
+      url.hash = "";
+      socket = new WebSocket(url.href);
       socket.onopen = () => {
         if (!active) return;
         setConnectionStatus("connected");
         stopSending();
-        sendInterval = setInterval(() => {
+        watchId = navigator.geolocation.watchPosition(position => {
           if (!active || socket.readyState !== WebSocket.OPEN) return;
+          // const { latitude, longitude } = position.coords;
+          if (!Number.isFinite(latitude) || Math.abs(latitude) > 90
+            || !Number.isFinite(longitude) || Math.abs(longitude) > 180) return;
+          setConnectionStatus("connected");
           try {
-            console.log("latitude: 27.1479, longitude: 87.7657 ");
-            socket.send(JSON.stringify({ type: "location_update", latitude: 27.1479, longitude: 87.7657 }));
+            socket.send(JSON.stringify({ type: "location_update", latitude, longitude }));
           } catch {
             stopSending();
             setConnectionStatus("error");
           }
-        }, 1000);
+        }, () => {
+          if (!active) return;
+          stopSending();
+          setConnectionStatus("location-error");
+        }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
       };
       socket.onerror = () => {
         stopSending();
@@ -108,6 +126,8 @@ export function TechnicianBookings() {
       }
     };
   }, [owner, shareBooking, shareConfirmed]);
+
+  
 
   useEffect(() => {
     if (!shareBooking || !shareDialogRef.current) return;
@@ -337,6 +357,7 @@ export function TechnicianBookings() {
           {connectionStatus === "connected" && <p role="status" className="mb-4 text-sm text-emerald-600">WebSocket connected.</p>}
           {connectionStatus === "error" && <p role="alert" className="mb-4 text-sm text-rose-600">Unable to connect. Check that the WebSocket server is running and try again.</p>}
           {connectionStatus === "unauthenticated" && <p role="alert" className="mb-4 text-sm text-rose-600">Your access token is missing. Please sign in again to share your location.</p>}
+          {connectionStatus === "location-error" && <p role="alert" className="mb-4 text-sm text-rose-600">Unable to access GPS. Enable device location and allow location access on a secure connection, then retry sharing.</p>}
           {connectionStatus === "closed" && <p role="status" className="mb-4 text-sm">Connection closed. You can try again.</p>}
           <button type="button" disabled={connectionStatus === "connecting" || connectionStatus === "connected"} onClick={() => { setConnectionStatus("connecting"); setShareConfirmed(value => Number(value) + 1); }} className="inline-flex rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{connectionStatus === "connected" ? "Connected" : connectionStatus === "connecting" ? "Connecting…" : "Confirm location share"}</button>
         </dialog>

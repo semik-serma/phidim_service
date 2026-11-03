@@ -88,7 +88,7 @@
   padding: 16px 12px;
 }
 
-.activeLink, .logout {
+.activeLink, .navLink, .logout {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -109,6 +109,8 @@
 }
 
 .logout { color: #ffe4e6; text-align: left; }
+.navLink { color: #edf8f1; }
+.navLink:hover { background: rgb(255 255 255 / 10%); }
 .logout:hover { background: rgb(255 255 255 / 10%); }
 .navigation svg { flex-shrink: 0; }
 
@@ -118,7 +120,7 @@
 .collapsed .brand { flex-direction: column; gap: 8px; padding-inline: 8px; }
 .collapsed .brandText, .collapsed .navigation span { display: none; }
 .collapsed .navigation { padding-inline: 10px; }
-.collapsed .activeLink, .collapsed .logout { justify-content: center; padding-inline: 10px; }
+.collapsed .activeLink, .collapsed .navLink, .collapsed .logout { justify-content: center; padding-inline: 10px; }
 
 .topbar {
   position: sticky;
@@ -134,6 +136,24 @@
   font-size: 0.875rem;
   font-weight: 600;
 }
+
+.homeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #059669;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 150ms;
+}
+
+.homeButton:hover { background: #047857; }
 
 .content {
   width: 100%;
@@ -263,7 +283,7 @@
   .collapsed .brand { flex-direction: row; padding: 16px; }
   .collapsed .brandText, .collapsed .navigation span { display: block; }
   .collapsed .navigation { padding-inline: 12px; }
-  .collapsed .activeLink, .collapsed .logout { justify-content: flex-start; padding-inline: 14px; }
+  .collapsed .activeLink, .collapsed .navLink, .collapsed .logout { justify-content: flex-start; padding-inline: 14px; }
   .backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: rgb(15 23 42 / 35%); cursor: pointer; }
 }
 

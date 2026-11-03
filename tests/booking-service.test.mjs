@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchServiceAreas, fetchServicesByArea, fetchTechnicians, buildBookingPayload, nepalDateTimeToUTC, postBooking, normalizeCreatedBooking } from '../services/bookingService.js';
+import { fetchBookingServices, fetchServiceAreas, fetchServicesByArea, fetchTechnicians, buildBookingPayload, nepalDateTimeToUTC, postBooking, normalizeCreatedBooking } from '../services/bookingService.js';
+
+test('service-first choices require authentication, load every page and reject unsafe pagination', async () => {
+  let calls = 0;
+  const options = {token: 't', baseUrl: 'http://localhost:8000', fetchImpl: async (url, options) => {
+    assert.equal(options.headers.Authorization, 'Bearer t');
+    assert.equal(options.redirect, 'error');
+    assert.equal(url, 'http://localhost:8000/services/' + (calls ? '?page=2' : ''));
+    return Response.json(++calls === 1 ? {results: [{id: 55, name: 'CCTV repair'}], next: '?page=2'} : {results: [{id: 56, name: 'AC repair'}], next: null});
+  }};
+  assert.deepEqual((await fetchBookingServices(options)).map(row => row.id), [55, 56]);
+  for (const next of ['/services/', 'https://foreign.example/services/']) {
+    await assert.rejects(fetchBookingServices({...options, fetchImpl: async () => Response.json({results: [], next})}), /pagination/);
+  }
+  await assert.rejects(fetchBookingServices({token: '', fetchImpl: () => assert.fail('Must not send')}), /sign in/);
+  await assert.rejects(fetchServiceAreas({token: '', fetchImpl: () => assert.fail('Must not send')}), /sign in/);
+  await assert.rejects(fetchBookingServices({...options, fetchImpl: async () => Response.json({}, {status: 401})}), /session expired/);
+});
 
 const input = { technicianId: 6, latitude: '27.16', longitude: '87.92', date: '2026-09-10', time: '16:15', notes: ' Camera has no video. ' };
 test('loads service area choices from the configured API and handles failures', async () => {
@@ -10,8 +27,8 @@ test('loads service area choices from the configured API and handles failures', 
     assert.equal(options.headers.Authorization, 'Bearer access-token');
     return Response.json(areas);
   }}), areas);
-  await assert.rejects(fetchServiceAreas({fetchImpl: async () => new Response('Offline', {status: 503})}), /Unable to load service areas/);
-  await assert.rejects(fetchServiceAreas({fetchImpl: async () => Response.json([{name: 'Missing ID'}])}), /Invalid service area/);
+  await assert.rejects(fetchServiceAreas({token: "t", fetchImpl: async () => new Response('Offline', {status: 503})}), /Unable to load service areas/);
+  await assert.rejects(fetchServiceAreas({token: "t", fetchImpl: async () => Response.json([{name: 'Missing ID'}])}), /Invalid service area/);
   assert.equal(buildBookingPayload({...input, serviceAreaId: 2}).service_area, 2);
   assert.throws(() => buildBookingPayload({...input, serviceAreaId: '2'}), /valid service area/);
 });

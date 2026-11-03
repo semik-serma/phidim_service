@@ -23,7 +23,8 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
   let stateIndex = 0, effectIndex = 0, refIndex = 0, pending = [], tree;
   const module = { exports: {} };
   vm.runInNewContext(compiled.code, {
-    module, exports: module.exports, React, AbortController, Intl, Date, URLSearchParams,
+    module, exports: module.exports, React, AbortController, Intl, Date, URL, URLSearchParams,
+    process: { env: { NEXT_PUBLIC_DJANGO_API_URL: 'https://api.example.test' } },
     window: { isSecureContext: false }, navigator: {}, ...browser,
     require: name => {
       if (name === 'react') return {
@@ -108,8 +109,12 @@ test('location sharing connects only after confirmation, retries errors and clos
   }
   const app = harness(async () => [booking], undefined, {
     WebSocket, document,
-    setInterval(callback, delay) { assert.equal(delay, 1000); intervals.set(++intervalId, callback); return intervalId; },
-    clearInterval(id) { intervals.delete(id); },
+    setTimeout() { return 1; }, clearTimeout() {},
+    window: { isSecureContext: true },
+    navigator: { geolocation: {
+      watchPosition(callback) { intervals.set(++intervalId, callback); return intervalId; },
+      clearWatch(id) { intervals.delete(id); },
+    } },
   });
   app.render(); await settle(); app.render();
   app.share();
@@ -117,7 +122,7 @@ test('location sharing connects only after confirmation, retries errors and clos
   assert.equal(sockets.length, 0);
   app.confirmShare(); app.render();
   const socketUrl = new URL(sockets[0].url);
-  assert.equal(socketUrl.origin + socketUrl.pathname, 'ws://127.0.0.1:8000/ws/share-location/20/');
+  assert.equal(socketUrl.origin + socketUrl.pathname, 'wss://api.example.test/ws/share-location/20/');
   assert.equal(socketUrl.searchParams.get('token'), 'dummy+access/token=');
   assert.equal(intervals.size, 0);
   sockets[0].onerror();
@@ -130,10 +135,11 @@ test('location sharing connects only after confirmation, retries errors and clos
   assert.match(app.render(), /WebSocket connected/);
   assert.equal(sockets[1].messages.length, 0);
   const tick = [...intervals.values()][0];
-  tick(); tick();
+  tick({ coords: { latitude: 27.15, longitude: 87.77 } });
+  tick({ coords: { latitude: 27.16, longitude: 87.78 } });
   assert.deepEqual(sockets[1].messages, [
-    { type: 'location_update', latitude: 27.1479, longitude: 87.7657 },
-    { type: 'location_update', latitude: 27.1479, longitude: 87.7657 },
+    { type: 'location_update', latitude: 27.15, longitude: 87.77 },
+    { type: 'location_update', latitude: 27.16, longitude: 87.78 },
   ]);
   sockets[1].readyState = 3;
   tick();
