@@ -293,3 +293,32 @@
   .card { padding: 18px; }
   .table td, .table .bookingId, .table thead th { padding: 16px; }
 }
+
+
+.actionButtons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.chatButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid #10b981;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.chatButton:hover {
+  background: #d1fae5;
+  border-color: #059669;
+  transform: translateY(-1px);
+}

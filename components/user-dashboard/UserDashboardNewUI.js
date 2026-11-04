@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck, X } from "lucide-react";
+import { BriefcaseBusiness, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck, X, MessageSquare } from "lucide-react";
+import { BookingChatModal } from "@/components/chat/BookingChatModal";
 import { useAuth } from "@/context/AuthContext";
 import { fetchBookings } from "@/services/bookingService";
 import BookingLiveLocationButton from "./BookingLiveLocationButton";
@@ -32,6 +33,7 @@ export default function UserDashboardNewUI() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [tab, setTab] = useState("bookings");
+  const [activeChatBooking, setActiveChatBooking] = useState(null);
   const current = owner && bookingState.owner === owner && bookingState.revision === revision;
   const bookings = current ? bookingState.bookings : [];
   const loading = !current || bookingState.loading;
@@ -115,6 +117,7 @@ export default function UserDashboardNewUI() {
                     <th scope="col">Status</th>
                     <th scope="col">Scheduled</th>
                     <th scope="col">Fee (NPR)</th>
+                    <th scope="col">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -133,6 +136,19 @@ export default function UserDashboardNewUI() {
                       </td>
                       <td>{scheduledDate(booking.date)}</td>
                       <td>{booking.amount ?? booking.numericAmount ?? "Unavailable"}</td>
+                      <td>
+                        <div className={styles.actionButtons}>
+                          <button
+                            type="button"
+                            className={styles.chatButton}
+                            onClick={() => setActiveChatBooking(booking)}
+                            aria-label={`Chat with technician for booking #${booking.id}`}
+                          >
+                            <MessageSquare size={14} aria-hidden="true" />
+                            <span>Chat</span>
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -143,6 +159,12 @@ export default function UserDashboardNewUI() {
         )}
       </main>
       </div>
+          {activeChatBooking && (
+        <BookingChatModal
+          booking={activeChatBooking}
+          onClose={() => setActiveChatBooking(null)}
+        />
+      )}
     </div>
   );
 }

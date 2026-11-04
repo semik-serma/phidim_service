@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, RefreshCw, BriefcaseBusiness, X, Check, Loader2, Share2 } from "lucide-react";
+import { Search, RefreshCw, BriefcaseBusiness, X, Check, Loader2, Share2, MessageSquare } from "lucide-react";
+import { BookingChatModal } from "@/components/chat/BookingChatModal";
 import { useAuth } from "@/context/AuthContext";
 import { fetchBookings, updateTechnicianBooking } from "@/services/bookingService";
 
@@ -36,6 +37,7 @@ export function TechnicianBookings() {
   const [notice, setNotice] = useState(null);
   const [location, setLocation] = useState(null);
   const [shareBooking, setShareBooking] = useState(null);
+  const [activeChatBooking, setActiveChatBooking] = useState(null);
   const [shareConfirmed, setShareConfirmed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("idle");
   const shareDialogRef = useRef(null);
@@ -47,6 +49,7 @@ export function TechnicianBookings() {
   useEffect(() => setSearch(""), [owner]);
 
   useEffect(() => setShareBooking(null), [owner]);
+  useEffect(() => setActiveChatBooking(null), [owner]);
 
   const closeSharing = () => {
     setShareBooking(null);
@@ -318,6 +321,9 @@ export function TechnicianBookings() {
                     <button type="button" aria-haspopup="dialog" aria-label={`Share live location for booking #${booking.id}`} onClick={event => { event.stopPropagation(); setShareConfirmed(false); setConnectionStatus("idle"); setShareBooking(booking); }} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
                       <Share2 size={14} aria-hidden="true" />Share live location
                     </button>
+                    <button type="button" aria-haspopup="dialog" aria-label={`Chat with customer for booking #${booking.id}`} onClick={event => { event.stopPropagation(); setActiveChatBooking(booking); }} className="mt-2 sm:mt-0 sm:ml-2 inline-flex items-center gap-1.5 rounded-xl bg-blue-50 dark:bg-blue-950 px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                      <MessageSquare size={14} aria-hidden="true" />Chat
+                    </button>
                   </td>
                   <td className="px-4 py-4 break-words min-w-36">{personName(booking.technician, "Technician unavailable")}</td>
                   <td className="px-4 py-4"><span className="inline-block rounded-full bg-emerald-100 dark:bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300">{booking.status_display || booking.status || "Status unavailable"}</span></td>
@@ -379,12 +385,19 @@ export function TechnicianBookings() {
               <p className="whitespace-pre-wrap break-words">{selected.booking.problem_details?.trim() || "Problem details unavailable"}</p>
             </div>
             {selected.error && <p role="alert" className="rounded-xl bg-rose-50 dark:bg-rose-950/40 p-3 text-sm text-rose-700 dark:text-rose-300">{selected.error}</p>}
+            <button type="button" onClick={() => { const b = selected.booking; closeBooking(); setActiveChatBooking(b); }} className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 px-4 py-2.5 font-bold text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors mb-3"><MessageSquare size={16} />Chat with Customer</button>
             <div className="flex flex-col sm:flex-row gap-3">
               <button type="button" disabled={!!selected.pending} onClick={() => submitDecision("r")} className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 font-bold text-sm text-rose-700 dark:text-rose-300 hover:bg-rose-100 disabled:opacity-50">{selected.pending === "r" ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}{selected.pending === "r" ? "Rejecting…" : "Reject booking"}</button>
               <button type="button" disabled={!!selected.pending} onClick={() => submitDecision("c")} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-sm text-white hover:bg-emerald-700 disabled:opacity-50">{selected.pending === "c" ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}{selected.pending === "c" ? "Accepting…" : "Accept booking"}</button>
             </div>
           </div>
         </dialog>
+      )}
+      {activeChatBooking && (
+        <BookingChatModal
+          booking={activeChatBooking}
+          onClose={() => setActiveChatBooking(null)}
+        />
       )}
     </>
   );
