@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BriefcaseBusiness, ChevronLeft, ChevronRight, LogOut, Menu, ShieldCheck, X, MessageSquare } from "lucide-react";
-import { BookingChatModal } from "@/components/chat/BookingChatModal";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { fetchBookings } from "@/services/bookingService";
 import BookingLiveLocationButton from "./BookingLiveLocationButton";
@@ -25,6 +25,7 @@ function scheduledDate(value) {
 }
 
 export default function UserDashboardNewUI() {
+  const router = useRouter();
   const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
   const allowed = !authLoading && isAuthenticated && ["USER", "ADMIN"].includes(user?.role);
   const owner = allowed ? `${user.id}:${user.email}:${user.role}` : null;
@@ -33,7 +34,7 @@ export default function UserDashboardNewUI() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [tab, setTab] = useState("bookings");
-  const [activeChatBooking, setActiveChatBooking] = useState(null);
+
   const current = owner && bookingState.owner === owner && bookingState.revision === revision;
   const bookings = current ? bookingState.bookings : [];
   const loading = !current || bookingState.loading;
@@ -141,7 +142,7 @@ export default function UserDashboardNewUI() {
                           <button
                             type="button"
                             className={styles.chatButton}
-                            onClick={() => setActiveChatBooking(booking)}
+                            onClick={() => router.push(`/user/bookings/${booking.id}/chat`)}
                             aria-label={`Chat with technician for booking #${booking.id}`}
                           >
                             <MessageSquare size={14} aria-hidden="true" />
@@ -159,12 +160,6 @@ export default function UserDashboardNewUI() {
         )}
       </main>
       </div>
-          {activeChatBooking && (
-        <BookingChatModal
-          booking={activeChatBooking}
-          onClose={() => setActiveChatBooking(null)}
-        />
-      )}
     </div>
   );
 }

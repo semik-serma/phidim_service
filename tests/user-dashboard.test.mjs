@@ -22,11 +22,13 @@ function dashboardHarness(fetchBookings = async () => []) {
   let hookIndex = 0;
   let effect;
   let logoutCalls = 0;
+  const navigations = [];
   const auth = { user: { id: 1, email: "customer@example.com", role: "USER" }, isAuthenticated: true, isLoading: false, logout: () => { logoutCalls++; } };
   const module = { exports: {} };
   vm.runInNewContext(compiled.code, {
     React, AbortController, module, exports: module.exports,
     require: name => {
+      if (name === "next/navigation") return { useRouter: () => ({ push(path) { navigations.push(path); } }) };
       if (name === "react") return {
         ...React,
         useState: initial => {
@@ -40,7 +42,7 @@ function dashboardHarness(fetchBookings = async () => []) {
       if (name === "@/services/bookingService") return { fetchBookings };
       if (name === "./TechnicianSearchPage") return { __esModule: true, default: () => React.createElement("section", null, "Booking flow") };
       if (name === "./BookingLiveLocationButton") return { __esModule: true, default: ({ bookingId }) => React.createElement("button", { "data-booking-id": bookingId }, "Show live location") };
-      if (name === "lucide-react") return Object.fromEntries(["LogOut", "BriefcaseBusiness", "ChevronLeft", "ChevronRight", "Menu", "ShieldCheck", "X"].map(name => [name, () => null]));
+      if (name === "lucide-react") return Object.fromEntries(["LogOut", "BriefcaseBusiness", "ChevronLeft", "ChevronRight", "Menu", "ShieldCheck", "X", "MessageSquare"].map(name => [name, () => null]));
       if (name.endsWith(".module.css")) return {};
       throw new Error(`Unexpected dashboard dependency: ${name}`);
     },
@@ -48,6 +50,7 @@ function dashboardHarness(fetchBookings = async () => []) {
   const tree = () => { hookIndex = 0; return module.exports.default(); };
   return {
     auth,
+    navigations,
     tree,
     html: () => renderToStaticMarkup(tree()),
     mount: () => { tree(); return effect(); },
@@ -188,4 +191,14 @@ test("Create Booking navigation opens the flow and refreshes bookings after crea
   const flow = findElement(dashboard.tree(), e => e.props.embedded);
   flow.props.onCreated(); flow.props.onViewBookings();
   assert.match(dashboard.html(), /Loading bookings/);
+});
+
+test("booking chat navigates to its dedicated conversation page", async () => {
+  const dashboard = dashboardHarness(async () => [{ id: 21, status: "c", technician: { first_name: "Test" } }]);
+  dashboard.mount(); await tick();
+  const button = findElement(dashboard.tree(), element => element.props["aria-label"] === "Chat with technician for booking #21");
+  assert.ok(button);
+  button.props.onClick();
+  assert.deepEqual(dashboard.navigations, ["/user/bookings/21/chat"]);
+  assert.doesNotMatch(dashboard.html(), /aria-modal="true"/);
 });

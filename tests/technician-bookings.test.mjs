@@ -27,6 +27,7 @@ function harness(fetchImpl, updateImpl = async () => { throw new Error('Unexpect
     process: { env: { NEXT_PUBLIC_DJANGO_API_URL: 'https://api.example.test' } },
     window: { isSecureContext: false }, navigator: {}, ...browser,
     require: name => {
+      if (name === "next/navigation") return { useRouter: () => ({ push() {} }) };
       if (name === 'react') return {
         useRef(initial) {
           const index = refIndex++;

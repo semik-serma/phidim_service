@@ -14,19 +14,21 @@ const { code } = await transform(await readFile(new URL("../components/chat/Book
   module: { type: "commonjs" },
 });
 
-function harness() {
-  const hooks = [], pending = [], sockets = [], sent = [];
+function harness({ cookie = "phidim_access_token=test-token", env = {}, location } = {}) {
+  const hooks = [], pending = [], sockets = [], sent = [], timers = [];
   let cursor = 0, tree;
   class WebSocket {
     static OPEN = 1;
-    constructor() { sockets.push(this); this.readyState = 1; }
+    constructor(url) { this.url = url; sockets.push(this); this.readyState = 1; }
     send(value) { sent.push(JSON.parse(value)); }
     close() {}
   }
   const module = { exports: {} };
   vm.runInNewContext(code, {
     React, module, exports: module.exports, WebSocket, URL, URLSearchParams, console,
-    process: { env: {} }, document: { cookie: "" },
+    setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout(id) { timers[id - 1] = null; },
+    process: { env }, document: { cookie },
+    ...(location ? { window: { location, localStorage: { getItem() { return null; } } }, localStorage: { getItem() { return null; } } } : {}),
     require(name) {
       if (name === "react") return {
         useState(initial) {
@@ -64,6 +66,9 @@ function harness() {
   }
   const app = {
     sent, sockets,
+    type(text) { find(tree, "input").props.onChange({ target: { value: text } }); app.render(); },
+    blur() { find(tree, "input").props.onBlur(); },
+    expire() { timers.splice(0).forEach(fn => fn?.()); },
     render() {
       cursor = 0;
       tree = module.exports.BookingChatModal({ booking: { id: 21 }, onClose() {} });
@@ -77,19 +82,49 @@ function harness() {
       find(tree, "input").props.onKeyDown({ key: "Enter", preventDefault() {} });
     },
   };
-  app.render(); sockets[0].onopen(); app.render();
+  app.render(); sockets[0]?.onopen(); app.render();
   return app;
 }
 
 test("booking chat sends the consumer contract and renders persisted broadcasts once", () => {
   const app = harness();
   app.send("  Hello  ");
-  assert.deepEqual(app.sent, [{ type: "chat.message", message: "Hello" }]);
+  assert.deepEqual(app.sent, [{ type: "typing.start" }, { type: "typing.stop" }, { type: "chat.message", message: "Hello" }]);
   const frame = { type: "chat.message", data: { id: 1, user_id: 8, message: "Hello", created_at: "2026-11-04T10:00:00Z" } };
   app.receive(frame); app.receive(frame);
   const html = app.render();
   assert.equal((html.match(/>Hello</g) || []).length, 1);
   assert.match(html, />You</);
+});
+
+test("missing credentials show a sign-in error without opening an anonymous socket", () => {
+  const app = harness({ cookie: "" });
+  assert.equal(app.sockets.length, 0);
+  assert.match(app.render(), /Please sign in again/);
+});
+
+test("secure WebSocket hosts remain secure and stale query parameters are removed", () => {
+  const app = harness({ env: { NEXT_PUBLIC_DJANGO_WS_URL: "wss://chat.example.test/old?stale=yes" } });
+  const url = new URL(app.sockets[0].url);
+  assert.equal(url.protocol, "wss:");
+  assert.equal(url.pathname, "/ws/chat/21/");
+  assert.equal(url.searchParams.get("token"), "test-token");
+  assert.equal(url.searchParams.has("stale"), false);
+});
+
+test("mixed-content connections are explained before opening a socket", () => {
+  const app = harness({ location: { protocol: "https:" } });
+  assert.equal(app.sockets.length, 0);
+  assert.match(app.render(), /Chat requires a secure connection/);
+});
+
+test("close codes preserve authentication, authorization and server failure explanations", () => {
+  for (const [code, pattern] of [[4401, /authentication was rejected/], [4403, /access was denied/], [1011, /server encountered an error/], [1006, /connection was interrupted/]]) {
+    const app = harness();
+    app.sockets[0].onerror({});
+    app.sockets[0].onclose({ code });
+    assert.match(app.render(), pattern);
+  }
 });
 
 test("history is loaded and control/error events are not chat bubbles", () => {
@@ -107,10 +142,43 @@ test("history is loaded and control/error events are not chat bubbles", () => {
 test("disconnected and oversized messages are not sent", () => {
   const app = harness();
   app.send("x".repeat(5001));
-  assert.equal(app.sent.length, 0);
+  assert.equal(app.sent.filter(frame => frame.type === "chat.message").length, 0);
   assert.match(app.render(), /Message exceeds 5000 characters/);
   app.sockets[0].readyState = 3;
   app.send("Offline message");
-  assert.equal(app.sent.length, 0);
+  assert.equal(app.sent.filter(frame => frame.type === "chat.message").length, 0);
   assert.match(app.render(), /Reconnect before sending/);
+});
+
+test("typing is throttled, stops on blur and inactivity, and ignores self events", () => {
+  const app = harness();
+  app.type("H"); app.type("Hello");
+  assert.deepEqual(app.sent, [{ type: "typing.start" }]);
+  app.blur();
+  assert.equal(app.sent.at(-1).type, "typing.stop");
+  app.type("More"); app.expire();
+  assert.equal(app.sent.at(-1).type, "typing.stop");
+  app.receive({ type: "chat.typing", user_id: 8, is_typing: true });
+  assert.doesNotMatch(app.render(), /is typing/);
+  app.receive({ type: "chat.typing", user_id: 9, is_typing: true });
+  assert.match(app.render(), /is typing/);
+  app.expire();
+  assert.doesNotMatch(app.render(), /is typing/);
+  app.receive({ type: "chat_typing", user_id: 9, is_typing: true });
+  assert.match(app.render(), /is typing/);
+  app.receive({ type: "chat.typing", user_id: 9, is_typing: false });
+  assert.doesNotMatch(app.render(), /is typing/);
+});
+
+test("consumer typing.start and typing.stop frames show and clear the indicator", () => {
+  const app = harness();
+  app.receive({ type: "typing.start", user_id: 9 });
+  assert.match(app.render(), /is typing/);
+  app.receive({ type: "typing.stop", user_id: 9 });
+  assert.doesNotMatch(app.render(), /is typing/);
+  app.receive({ type: "typing.start", user_id: 8 });
+  assert.doesNotMatch(app.render(), /is typing/);
+  app.receive({ type: "typing.start", user_id: 9 });
+  app.expire();
+  assert.doesNotMatch(app.render(), /is typing/);
 });

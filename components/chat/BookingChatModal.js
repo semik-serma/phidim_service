@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageSquare,
   Send,
-  X,
+  ArrowLeft,
   RefreshCw,
   Check,
   CheckCheck,
@@ -48,7 +48,36 @@ export function BookingChatModal({ booking, onClose }) {
   const [statusMessage, setStatusMessage] = useState("");
   const [retryCounter, setRetryCounter] = useState(0);
 
+  const [remoteTyping, setRemoteTyping] = useState(false);
+  const typingTimer = useRef(null);
+  const remoteTypingTimer = useRef(null);
+  const lastTypingSent = useRef(0);
+  const localTyping = useRef(false);
   const socketRef = useRef(null);
+
+  const stopTyping = useCallback(() => {
+    clearTimeout(typingTimer.current);
+    if (localTyping.current && socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "typing.stop" }));
+    }
+    localTyping.current = false;
+  }, []);
+
+  const handleInputChange = (event) => {
+    const value = event.target.value;
+    setInputText(value);
+    if (!value.trim()) { stopTyping(); return; }
+    const socket = socketRef.current;
+    if (socket?.readyState !== WebSocket.OPEN) return;
+    // Refresh during sustained typing, without sending on every keystroke.
+    if (!localTyping.current || Date.now() - lastTypingSent.current >= 2000) {
+      socket.send(JSON.stringify({ type: "typing.start" }));
+      localTyping.current = true;
+      lastTypingSent.current = Date.now();
+    }
+    clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(stopTyping, 1500);
+  };
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -96,7 +125,7 @@ export function BookingChatModal({ booking, onClose }) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, connectionStatus, scrollToBottom]);
+  }, [messages, remoteTyping, connectionStatus, scrollToBottom]);
 
   // Retrieve authentication access token
   const getAccessToken = useCallback(() => {
@@ -119,15 +148,20 @@ export function BookingChatModal({ booking, onClose }) {
 
   // Build WebSocket URL according to route: ws/chat/<int:booking_id>/
   const buildWebSocketUrl = useCallback(() => {
-    const base = process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000";
+    const base = process.env.NEXT_PUBLIC_DJANGO_WS_URL || process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000";
     const url = new URL(base);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    if (!["http:", "https:", "ws:", "wss:"].includes(url.protocol)) {
+      throw new Error("Chat server address is invalid.");
+    }
+    url.protocol = ["https:", "wss:"].includes(url.protocol) ? "wss:" : "ws:";
+    if (typeof window !== "undefined" && window.location?.protocol === "https:" && url.protocol !== "wss:") {
+      throw new Error("Chat requires a secure connection. Configure NEXT_PUBLIC_DJANGO_WS_URL with your backend's wss:// address and restart Next.js.");
+    }
     url.pathname = `/ws/chat/${bookingId}/`;
 
     const token = getAccessToken();
-    if (token) {
-      url.search = new URLSearchParams({ token }).toString();
-    }
+    if (!token) throw new Error("Your chat session is missing. Please sign in again.");
+    url.search = new URLSearchParams({ token }).toString();
     url.hash = "";
     return url.toString();
   }, [bookingId, getAccessToken]);
@@ -138,7 +172,8 @@ export function BookingChatModal({ booking, onClose }) {
 
     let active = true;
     setConnectionStatus("connecting");
-    setStatusMessage(`Connecting to ws/chat/${bookingId}/...`);
+    setStatusMessage("Connecting to your conversation...");
+    setRemoteTyping(false);
 
     let socket;
     try {
@@ -156,6 +191,18 @@ export function BookingChatModal({ booking, onClose }) {
         if (!active) return;
         try {
           const eventData = JSON.parse(event.data);
+          if (["chat.typing", "chat_typing", "typing.start", "typing.stop"].includes(eventData.type)) {
+            const typing = eventData.data || eventData;
+            if (typing.user_id == null || String(typing.user_id) === String(myId)) return;
+            const isTyping = eventData.type === "typing.start" ||
+              (!["typing.start", "typing.stop"].includes(eventData.type) && typing.is_typing === true);
+            clearTimeout(remoteTypingTimer.current);
+            setRemoteTyping(isTyping);
+            if (isTyping) {
+              remoteTypingTimer.current = setTimeout(() => setRemoteTyping(false), 5000);
+            }
+            return;
+          }
           if (eventData.type === "connection") return;
           if (eventData.type === "error") {
             setStatusMessage(eventData.message || "Unable to send message.");
@@ -190,6 +237,8 @@ export function BookingChatModal({ booking, onClose }) {
 
           setStatusMessage("");
           if (!newMsg.isMe) {
+            clearTimeout(remoteTypingTimer.current);
+            setRemoteTyping(false);
             playMessageChime();
           }
         } catch (err) {
@@ -197,17 +246,35 @@ export function BookingChatModal({ booking, onClose }) {
         }
       };
 
-      socket.onerror = (err) => {
+      socket.onerror = () => {
         if (!active) return;
-        console.error("WebSocket chat error:", err);
+        // Browser error events do not expose the handshake response. The close
+        // handler supplies the available code; never log the token-bearing URL.
         setConnectionStatus("error");
-        setStatusMessage("Connection error. Ensure the backend WebSocket server is running.");
+        setStatusMessage("Chat connection failed. Waiting for connection details…");
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (!active) return;
+        clearTimeout(remoteTypingTimer.current);
+        setRemoteTyping(false);
+        localTyping.current = false;
+        clearTimeout(typingTimer.current);
+        const code = event?.code;
         setConnectionStatus("disconnected");
-        setStatusMessage("WebSocket disconnected. Click Reconnect to try again.");
+        if (code === 4401) {
+          setStatusMessage("Chat authentication was rejected. Please sign in again and reopen this booking.");
+        } else if (code === 4403) {
+          setStatusMessage("Chat access was denied. This booking may no longer be confirmed or assigned to you.");
+        } else if (code === 1008) {
+          setStatusMessage("The chat server rejected the connection under its access policy (1008). Check your session and booking access.");
+        } else if (code === 1011) {
+          setStatusMessage("The chat server encountered an error (1011). Please retry. If it continues, check the Django server logs.");
+        } else if (code === 1006) {
+          setStatusMessage("Chat could not connect or the connection was interrupted (1006). Check that the chat server is reachable and your session is valid, then reconnect.");
+        } else {
+          setStatusMessage(`Chat disconnected${code ? ` (${code})` : ""}. Reconnect to continue your conversation.`);
+        }
       };
     } catch (err) {
       if (active) {
@@ -218,6 +285,8 @@ export function BookingChatModal({ booking, onClose }) {
 
     return () => {
       active = false;
+      stopTyping();
+      clearTimeout(remoteTypingTimer.current);
       if (socket) {
         try {
           socket.close();
@@ -241,6 +310,7 @@ export function BookingChatModal({ booking, onClose }) {
       return;
     }
     try {
+      stopTyping();
       socketRef.current.send(JSON.stringify({ type: "chat.message", message: text }));
       setStatusMessage("");
     } catch (err) {
@@ -255,7 +325,7 @@ export function BookingChatModal({ booking, onClose }) {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -280,16 +350,12 @@ export function BookingChatModal({ booking, onClose }) {
       ];
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="booking-chat-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="relative w-full max-w-2xl bg-white dark:bg-[#071912] border border-slate-200 dark:border-emerald-900/50 rounded-3xl shadow-2xl flex flex-col h-[85dvh] max-h-[720px] overflow-hidden">
+    <main className="min-h-dvh bg-slate-100 dark:bg-[#030b08] px-3 py-4 sm:px-8 sm:py-8">
+      <div className="mx-auto mb-5 flex max-w-5xl items-center justify-between">
+        <button type="button" onClick={onClose} className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-700 dark:text-slate-300"><ArrowLeft size={18} /> Back to dashboard</button>
+        <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Booking messages</span>
+      </div>
+      <div className="mx-auto w-full max-w-5xl bg-white dark:bg-[#071912] border border-slate-200 dark:border-emerald-900/50 rounded-3xl shadow-xl shadow-slate-200/40 flex flex-col h-[calc(100dvh-112px)] min-h-[420px] overflow-hidden">
         {/* Header */}
         <header className="px-5 py-4 border-b border-slate-100 dark:border-emerald-900/30 bg-slate-50/80 dark:bg-[#040e0b]/80 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -302,14 +368,14 @@ export function BookingChatModal({ booking, onClose }) {
                   id="booking-chat-modal-title"
                   className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate"
                 >
-                  Booking #{bookingId} Chat
+                  {counterpartName}
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                   {booking?.status_display || booking?.status || "Active"}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                Chatting with <span className="font-semibold text-slate-700 dark:text-slate-200">{counterpartName}</span> ({counterpartRole})
+                Booking #{bookingId} · {counterpartRole}
               </p>
             </div>
           </div>
@@ -348,14 +414,7 @@ export function BookingChatModal({ booking, onClose }) {
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close chat"
-              className="p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 transition-colors"
-            >
-              <X size={19} />
-            </button>
+
           </div>
         </header>
 
@@ -365,7 +424,6 @@ export function BookingChatModal({ booking, onClose }) {
             <div className="truncate pr-2">
               <span className="font-bold">Service / Problem:</span> {booking.problem_details}
             </div>
-            <span className="text-[10px] font-mono opacity-80 shrink-0">ws/chat/{bookingId}/</span>
           </div>
         )}
 
@@ -395,7 +453,7 @@ export function BookingChatModal({ booking, onClose }) {
             <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-sm space-y-2">
               <RefreshCw size={24} className="mx-auto animate-spin text-emerald-500" />
               <p>Connecting to chat server...</p>
-              <p className="text-xs font-mono">ws/chat/{bookingId}/</p>
+
             </div>
           )}
 
@@ -406,7 +464,7 @@ export function BookingChatModal({ booking, onClose }) {
               </div>
               <div>
                 <p className="font-semibold text-slate-700 dark:text-slate-200">
-                  Direct WebSocket Connected
+                  Your conversation starts here
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
                   Say hello to {counterpartName} to start discussing this booking.
@@ -441,6 +499,14 @@ export function BookingChatModal({ booking, onClose }) {
               </div>
             );
           })}
+          {remoteTyping && (
+            <div role="status" className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="flex gap-1 rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-emerald-900 dark:bg-emerald-950" aria-hidden="true">
+                {[0, 1, 2].map(i => <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 motion-reduce:animate-none" style={{ animationDelay: `${i * 150}ms` }} />)}
+              </span>
+              {counterpartName} is typing…
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -466,7 +532,9 @@ export function BookingChatModal({ booking, onClose }) {
               ref={inputRef}
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={handleInputChange}
+              onBlur={stopTyping}
+              aria-label={`Message ${counterpartName}`}
               onKeyDown={handleKeyDown}
               placeholder={`Message ${counterpartName}...`}
               className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-[#040e0b] border border-slate-200 dark:border-emerald-900/40 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
@@ -474,7 +542,8 @@ export function BookingChatModal({ booking, onClose }) {
             <button
               type="button"
               onClick={() => handleSendMessage()}
-              disabled={!inputText.trim()}
+              aria-label="Send message"
+              disabled={!inputText.trim() || connectionStatus !== "connected"}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white font-bold rounded-xl text-sm flex items-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed shadow-md shadow-emerald-600/20"
             >
               <Send size={15} />
@@ -483,11 +552,11 @@ export function BookingChatModal({ booking, onClose }) {
           </div>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 px-1">
             <span>Press Enter to send</span>
-            <span className="font-mono">Route: ws/chat/{bookingId}/</span>
+            <span>Booking #{bookingId}</span>
           </div>
         </footer>
       </div>
-    </div>
+    </main>
   );
 }
 

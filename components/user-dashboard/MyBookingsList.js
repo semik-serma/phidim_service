@@ -38,7 +38,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getBookingsList, subscribeBookings, cancelBooking } from "@/lib/bookingStore";
 import { triggerBackendWarning, BACKEND_READY } from "@/lib/backendWarning";
 import { SERVICES, SERVICE_CATEGORIES } from "@/data/services";
-import { BookingChatModal } from "@/components/chat/BookingChatModal";
+import { useRouter } from "next/navigation";
 
 export const USER_STATUS_CLASSES = {
   Pending: {
@@ -79,6 +79,7 @@ export const USER_STATUS_CLASSES = {
 };
 
 export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
+  const router = useRouter();
   const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState("All");
@@ -86,7 +87,7 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
   const bookingForm = useBookingForm(isAddingBooking);
   const [activeInvoiceBooking, setActiveInvoiceBooking] = useState(null);
   const [successBookingBanner, setSuccessBookingBanner] = useState(null);
-  const [activeChatBooking, setActiveChatBooking] = useState(null);
+
 
   // New Booking Form State
   const [selectedServiceId, setSelectedServiceId] = useState(SERVICES[0]?.id || "custom");
@@ -599,8 +600,7 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
 
                   <button
                     onClick={() => {
-                      if (onChat) onChat(b.technician || { name: "Rajesh Tamang", email: "rajesh@phidim.np" }, b);
-                      else setActiveChatBooking(b);
+                      router.push(`/user/bookings/${b.id}/chat`);
                     }}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors border border-blue-500/20 cursor-pointer"
                   >
@@ -728,12 +728,6 @@ export function MyBookingsList({ onTrackLive, onChat, onCall, onInvoice }) {
           </div>
         )}
       </AnimatePresence>
-      {activeChatBooking && (
-        <BookingChatModal
-          booking={activeChatBooking}
-          onClose={() => setActiveChatBooking(null)}
-        />
-      )}
     </div>
   );
 }
