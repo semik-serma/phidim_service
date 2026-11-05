@@ -137,7 +137,7 @@ export function DirectChatSection({
 
     [...DEFAULT_REAL_USERS, ...localReal, ...apiUsers].forEach((u) => {
       if (u && (u.email || u.id)) {
-        const key = (u.email || u.id).toLowerCase().trim();
+        const key = String(u.email || u.id).toLowerCase().trim();
         if (key && key !== myEmail) {
           map.set(key, {
             ...u,
@@ -172,13 +172,6 @@ export function DirectChatSection({
       return true;
     });
   }, [contacts, searchQuery, activeFilter]);
-
-  // Set initial selected user if none selected
-  useEffect(() => {
-    if (!selectedUser && filteredContacts.length > 0) {
-      setSelectedUser(filteredContacts[0]);
-    }
-  }, [selectedUser, filteredContacts]);
 
   // Current active conversation messages
   const myIdentifier = currentUser?.email || currentUser?.id || "current-user";
@@ -241,7 +234,7 @@ export function DirectChatSection({
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -272,23 +265,23 @@ export function DirectChatSection({
   };
 
   return (
-    <div className="relative w-full rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col h-[740px] max-h-[88vh]">
+    <div className="chat-workspace relative w-full rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col h-[780px] max-h-[88dvh]">
       {/* Top Main Application Hub Bar */}
-      <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+      <div className="chat-topbar px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             <MessageSquare size={20} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-black tracking-tight text-white">Live Messages & Dispatch Hub</h2>
+              <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">Messages</h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Real-Time
+                Phidim Service
               </span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">
-              Direct peer-to-peer messaging, encrypted communication, and instant HD calling.
+              Stay connected with your customers and technicians.
             </p>
           </div>
         </div>
@@ -309,7 +302,7 @@ export function DirectChatSection({
       <div className="flex flex-1 overflow-hidden relative">
         {/* ── Left Sidebar: Conversations & Directory ── */}
         <div
-          className={`w-full md:w-[340px] lg:w-[380px] border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col shrink-0 transition-all ${
+          className={`chat-sidebar w-full md:w-[340px] lg:w-[380px] border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col shrink-0 transition-all ${
             selectedUser ? "hidden md:flex" : "flex"
           }`}
         >
@@ -321,7 +314,8 @@ export function DirectChatSection({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search people, technicians, admin..."
+                aria-label="Search conversations"
+                placeholder="Search conversations..."
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all"
               />
               {searchQuery && (
@@ -341,7 +335,7 @@ export function DirectChatSection({
                 { id: "ALL", label: "All" },
                 { id: "TECHNICIAN", label: "Technicians" },
                 { id: "ADMIN", label: "Admin" },
-                { id: "USER", label: "Users" },
+                { id: "USER", label: "Customers" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -369,20 +363,22 @@ export function DirectChatSection({
             ) : (
               filteredContacts.map((contact) => {
                 const cKey = contact.email || contact.id;
-                const isSelected = selectedUser && (selectedUser.email === contact.email || selectedUser.id === contact.id);
+                const isSelected = selectedUser && (selectedUser.email || selectedUser.id) === cKey;
                 const convMsgs = getConversationMessages(myIdentifier, cKey);
                 const lastMsg = convMsgs[convMsgs.length - 1];
                 const badge = getRoleBadge(contact.role);
                 const BadgeIcon = badge.icon;
 
                 return (
-                  <div
+                  <button
+                    type="button"
+                    aria-pressed={!!isSelected}
                     key={cKey}
                     onClick={() => {
                       setSelectedUser(contact);
                       if (onSelectPartner) onSelectPartner(contact);
                     }}
-                    className={`p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 relative ${
+                    className={`chat-contact w-full text-left p-3 rounded-2xl cursor-pointer transition-all flex items-center gap-3 relative ${
                       isSelected
                         ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 shadow-sm"
                         : "hover:bg-white dark:hover:bg-slate-800/60 border border-transparent"
@@ -421,7 +417,7 @@ export function DirectChatSection({
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
@@ -430,14 +426,14 @@ export function DirectChatSection({
 
         {/* ── Right: Active Chat View Area ── */}
         <div
-          className={`flex-1 flex flex-col bg-white dark:bg-slate-900 transition-all ${
+          className={`chat-conversation flex-1 flex flex-col bg-white dark:bg-slate-900 transition-all ${
             selectedUser ? "flex" : "hidden md:flex"
           }`}
         >
           {selectedUser ? (
             <>
               {/* Active Conversation Header */}
-              <div className="px-4 sm:px-6 py-3.5 bg-slate-50/80 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div className="chat-header px-4 sm:px-6 py-3.5 bg-slate-50/80 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   {/* Mobile Back Button */}
                   <button
@@ -517,13 +513,7 @@ export function DirectChatSection({
               </div>
 
               {/* Message Stream Area */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/40 dark:bg-[#070f0d]/40">
-                {/* Security Banner */}
-                <div className="max-w-md mx-auto py-1.5 px-3 rounded-full bg-slate-200/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 text-[10px] font-bold text-center border border-slate-300/40 dark:border-slate-700/40 flex items-center justify-center gap-1.5">
-                  <ShieldCheck size={12} className="text-emerald-500" />
-                  <span>Messages and HD calls are end-to-end synchronized across Phidim Service.</span>
-                </div>
-
+              <div aria-label="Conversation messages" role="log" aria-live="polite" className="chat-stream flex-1 overflow-y-auto bg-slate-50/40 dark:bg-[#070f0d]/40">
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center py-12 max-w-md mx-auto space-y-4">
                     <div className="p-4 rounded-3xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -554,68 +544,32 @@ export function DirectChatSection({
                     </div>
                   </div>
                 ) : (
-                  messages.map((msg) => {
+                  messages.map((msg, index) => {
                     const isMe =
                       (msg.senderEmail && currentUser?.email && msg.senderEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
-                      (msg.senderId && currentUser?.id && msg.senderId === currentUser.id);
-
+                      (msg.senderId && currentUser?.id && String(msg.senderId) === String(currentUser.id));
+                    const date = new Date(msg.timestamp);
+                    const previous = index ? new Date(messages[index - 1].timestamp) : null;
+                    const showDate = Number.isFinite(date.getTime()) && (!previous || date.toDateString() !== previous.toDateString());
                     return (
-                      <div
-                        key={msg.id}
-                        className={`flex items-end gap-2.5 group ${isMe ? "justify-end" : "justify-start"}`}
-                      >
-                        {!isMe && <UserAvatar user={selectedUser} size="xs" className="mb-1" />}
-
-                        <div className={`relative max-w-[82%] sm:max-w-[70%] space-y-1 ${isMe ? "items-end" : "items-start"}`}>
-                          {!isMe && (
-                            <span className="text-[10px] font-bold text-slate-400 px-1">
-                              {msg.senderName || selectedUser.displayName || selectedUser.name}
-                            </span>
-                          )}
-
-                          <div
-                            className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed shadow-sm break-words relative ${
-                              isMe
-                                ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-br-xs shadow-emerald-600/10"
-                                : "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-xs border border-slate-200/80 dark:border-slate-700/80"
-                            }`}
-                          >
-                            <p className="whitespace-pre-wrap">{msg.text}</p>
-
-                            {/* Message Reaction Badge */}
-                            {msg.reaction && (
-                              <span className="absolute -bottom-2 -right-2 px-1.5 py-0.5 rounded-full bg-white dark:bg-slate-900 shadow-md border border-slate-200 dark:border-slate-700 text-xs">
-                                {msg.reaction}
-                              </span>
-                            )}
+                      <div key={msg.id}>
+                        {showDate && <div className="chat-date">{date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div>}
+                        <article className="chat-entry">
+                          <div className="chat-entry-avatar"><UserAvatar user={isMe ? currentUser : selectedUser} size="sm" /></div>
+                          <div className="chat-entry-body">
+                            <div className="chat-entry-meta">
+                              <strong>{isMe ? currentUser?.displayName || currentUser?.name || "You" : msg.senderName || selectedUser.displayName || selectedUser.name}</strong>
+                              {isMe && <span className="chat-you">You</span>}
+                              <time dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}>{msg.time}</time>
+                            </div>
+                            <p className="chat-entry-text">{msg.text}</p>
+                            <div className="chat-reactions">
+                              {msg.reaction && <span className="chat-reaction">{msg.reaction}</span>}
+                              <button type="button" title="React with heart" onClick={() => addMessageReaction(myIdentifier, partnerIdentifier, msg.id, "❤️")}>❤️</button>
+                              <button type="button" title="React with thumbs up" onClick={() => addMessageReaction(myIdentifier, partnerIdentifier, msg.id, "👍")}>👍</button>
+                            </div>
                           </div>
-
-                          {/* Time & Delivery Checkmark */}
-                          <div className={`flex items-center gap-1 text-[10px] text-slate-400 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
-                            <span>{msg.time}</span>
-                            {isMe && <CheckCheck size={13} className="text-emerald-500" />}
-                          </div>
-                        </div>
-
-                        {/* Reaction Trigger on Hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 self-center pb-3">
-                          <button
-                            type="button"
-                            onClick={() => addMessageReaction(myIdentifier, partnerIdentifier, msg.id, "❤️")}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs"
-                            title="Heart"
-                          >
-                            ❤️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => addMessageReaction(myIdentifier, partnerIdentifier, msg.id, "👍")}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs"
-                            title="Thumbs Up"
-                          >
-                            👍
-                          </button>
-                        </div>
+                        </article>
                       </div>
                     );
                   })
@@ -624,7 +578,7 @@ export function DirectChatSection({
               </div>
 
               {/* Message Composer & Input Bar */}
-              <div className="p-3 sm:p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="chat-composer p-3 sm:p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 shrink-0">
                 {/* Emoji Picker Popover */}
                 {showEmojiPicker && (
                   <div className="mb-2 p-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl flex items-center gap-2 flex-wrap">
@@ -645,7 +599,7 @@ export function DirectChatSection({
                   </div>
                 )}
 
-                <div className="flex items-center gap-2">
+                <div className="chat-composer-field">
                   {/* Emoji Trigger */}
                   <button
                     type="button"
@@ -663,6 +617,7 @@ export function DirectChatSection({
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    aria-label="Write a message"
                     placeholder={`Message ${selectedUser.displayName || selectedUser.name}...`}
                     className="flex-1 px-4 py-3 bg-slate-100/80 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all"
                   />
@@ -678,6 +633,7 @@ export function DirectChatSection({
                     <Send size={16} />
                   </button>
                 </div>
+                <div className="chat-composer-hint"><span>Enter to send</span><span>A little conversation. Better service.</span></div>
               </div>
             </>
           ) : (
@@ -695,7 +651,7 @@ export function DirectChatSection({
 
         {/* ── Contact Details Slide-Over Drawer ── */}
         {showContactDrawer && selectedUser && (
-          <div className="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 flex flex-col space-y-6 shrink-0 absolute right-0 top-0 bottom-0 z-30 shadow-2xl animate-in slide-in-from-right duration-200">
+          <div className="chat-drawer w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6 flex flex-col space-y-6 shrink-0 absolute right-0 top-0 bottom-0 z-30 shadow-2xl animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <h4 className="text-sm font-black text-slate-900 dark:text-white">Contact Profile</h4>
               <button
