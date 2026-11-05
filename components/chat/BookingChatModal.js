@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageSquare,
   Send,
+  Paperclip,
+  X,
   ArrowLeft,
   RefreshCw,
   Check,
@@ -40,6 +42,13 @@ function formatTime(isoString) {
   }).format(d);
 }
 
+function formatFileSize(size) {
+  if (!Number.isFinite(size) || size < 0) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function BookingChatModal({ booking, onClose }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -47,6 +56,8 @@ export function BookingChatModal({ booking, onClose }) {
   const [connectionStatus, setConnectionStatus] = useState("idle"); // "idle" | "connecting" | "connected" | "disconnected" | "error"
   const [statusMessage, setStatusMessage] = useState("");
   const [retryCounter, setRetryCounter] = useState(0);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadInfo, setUploadInfo] = useState(null);
 
   const [remoteTyping, setRemoteTyping] = useState(false);
   const typingTimer = useRef(null);
@@ -54,6 +65,8 @@ export function BookingChatModal({ booking, onClose }) {
   const lastTypingSent = useRef(0);
   const localTyping = useRef(false);
   const socketRef = useRef(null);
+  const pendingFileUrlRef = useRef("");
+  const pendingFileMessageIdRef = useRef("");
 
   const stopTyping = useCallback(() => {
     clearTimeout(typingTimer.current);
@@ -80,6 +93,14 @@ export function BookingChatModal({ booking, onClose }) {
   };
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const previewUrl = uploadInfo?.previewUrl;
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [uploadInfo?.previewUrl]);
 
   const bookingId = booking?.id;
   const isTechnician = user?.role === "TECHNICIAN";
@@ -146,6 +167,100 @@ export function BookingChatModal({ booking, onClose }) {
     return token;
   }, []);
 
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
+    setUploadInfo({ file, name: file.name, type: file.type, size: file.size, previewUrl, phase: "uploading", progress: 0, error: "" });
+    setStatusMessage("");
+
+    if (!booking?.chat_group) {
+      setUploadInfo((current) => ({ ...current, phase: "error", error: "This booking is missing its chat group." }));
+      setStatusMessage("This booking is missing its chat group. The file was not uploaded.");
+      return;
+    }
+    if (socketRef.current?.readyState !== WebSocket.OPEN) {
+      setUploadInfo((current) => ({ ...current, phase: "error", error: "Reconnect to chat before uploading." }));
+      setStatusMessage("Chat is disconnected. Reconnect before uploading a file.");
+      return;
+    }
+
+    setUploadingFile(true);
+    let uploaded = false;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("chat_group", String(booking.chat_group));
+
+      const result = await new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("POST", "/api/django/attachments/upload/");
+        request.setRequestHeader("Authorization", `Bearer ${getAccessToken()}`);
+        request.upload.onprogress = (progressEvent) => {
+          if (!progressEvent.lengthComputable) return;
+          const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+          setUploadInfo((current) => current ? { ...current, progress } : current);
+        };
+        request.onload = () => {
+          let payload = null;
+          try { payload = JSON.parse(request.responseText); } catch {}
+          if (request.status < 200 || request.status >= 300) {
+            reject(new Error(payload?.message || payload?.detail || "File upload failed. Please try again."));
+            return;
+          }
+          resolve(payload);
+        };
+        request.onerror = () => reject(new Error("Could not reach the file upload service. Check your connection and retry."));
+        request.onabort = () => reject(new Error("File upload was cancelled."));
+        request.send(formData);
+      });
+      if (result?.success !== true || typeof result?.data?.file_url !== "string" || !result.data.file_url) {
+        throw new Error(result?.message || result?.detail || "File upload failed. Please try again.");
+      }
+
+      uploaded = true;
+      setUploadInfo((current) => current ? { ...current, phase: "sending", progress: 100 } : current);
+      const socket = socketRef.current;
+      if (socket?.readyState !== WebSocket.OPEN) {
+        setUploadInfo((current) => current ? { ...current, phase: "error", error: "File uploaded, but chat disconnected before it could be sent." } : current);
+        setStatusMessage("File uploaded, but chat disconnected before it could be sent. Reconnect and upload it again.");
+        return;
+      }
+
+      pendingFileUrlRef.current = result.data.file_url;
+      const pendingId = `pending-file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      pendingFileMessageIdRef.current = pendingId;
+      setMessages((previous) => [...previous, {
+        id: pendingId,
+        text: result.data.file_url,
+        sender: myName,
+        sender_id: myId,
+        sender_role: user?.role,
+        timestamp: new Date().toISOString(),
+        isMe: true,
+        pending: true,
+      }]);
+      socket.send(JSON.stringify({ type: "chat.message", message: result.data.file_url }));
+      setUploadInfo((current) => current ? { ...current, phase: "sending" } : current);
+    } catch (err) {
+      console.error("Failed to upload or send chat file:", err);
+      if (pendingFileMessageIdRef.current) {
+        const failedId = pendingFileMessageIdRef.current;
+        pendingFileMessageIdRef.current = "";
+        pendingFileUrlRef.current = "";
+        setMessages((previous) => previous.filter((message) => message.id !== failedId));
+      }
+      setUploadInfo((current) => current ? { ...current, phase: "error", error: uploaded ? "Uploaded, but it could not be sent to chat." : (err?.message || "File upload failed.") } : current);
+      setStatusMessage(uploaded
+        ? "File uploaded, but it could not be sent to chat. Reconnect and upload it again."
+        : err?.message || "File upload failed. Please try again.");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
   // Build WebSocket URL according to route: ws/chat/<int:booking_id>/
   const buildWebSocketUrl = useCallback(() => {
     const base = process.env.NEXT_PUBLIC_DJANGO_WS_URL || process.env.NEXT_PUBLIC_DJANGO_API_URL || "http://localhost:8000";
@@ -205,6 +320,13 @@ export function BookingChatModal({ booking, onClose }) {
           }
           if (eventData.type === "connection") return;
           if (eventData.type === "error") {
+            if (pendingFileMessageIdRef.current) {
+              const failedId = pendingFileMessageIdRef.current;
+              pendingFileMessageIdRef.current = "";
+              pendingFileUrlRef.current = "";
+              setMessages((previous) => previous.filter((message) => message.id !== failedId));
+              setUploadInfo((current) => current ? { ...current, phase: "error", error: eventData.message || "The chat server rejected the file message." } : current);
+            }
             setStatusMessage(eventData.message || "Unable to send message.");
             return;
           }
@@ -229,11 +351,24 @@ export function BookingChatModal({ booking, onClose }) {
 
           const newMsg = toMessage(eventData.data);
 
-          setMessages((prev) => {
-            const isDuplicate = prev.some((m) => String(m.id) === String(newMsg.id));
-            if (isDuplicate) return prev;
-            return [...prev, newMsg];
-          });
+          if (pendingFileUrlRef.current && eventData.data.message === pendingFileUrlRef.current) {
+            pendingFileUrlRef.current = "";
+            const pendingId = pendingFileMessageIdRef.current;
+            pendingFileMessageIdRef.current = "";
+            setUploadInfo((current) => current ? { ...current, phase: "sent", progress: 100 } : current);
+            setMessages((previous) => {
+              if (previous.some((message) => String(message.id) === String(newMsg.id))) return previous;
+              const pendingIndex = previous.findIndex((message) => message.id === pendingId);
+              if (pendingIndex < 0) return [...previous, newMsg];
+              return previous.map((message, index) => index === pendingIndex ? newMsg : message);
+            });
+          } else {
+            setMessages((prev) => {
+              const isDuplicate = prev.some((m) => String(m.id) === String(newMsg.id));
+              if (isDuplicate) return prev;
+              return [...prev, newMsg];
+            });
+          }
 
           setStatusMessage("");
           if (!newMsg.isMe) {
@@ -256,6 +391,13 @@ export function BookingChatModal({ booking, onClose }) {
 
       socket.onclose = (event) => {
         if (!active) return;
+        if (pendingFileMessageIdRef.current) {
+          const pendingId = pendingFileMessageIdRef.current;
+          pendingFileMessageIdRef.current = "";
+          pendingFileUrlRef.current = "";
+          setMessages((previous) => previous.filter((message) => message.id !== pendingId));
+          setUploadInfo((current) => current ? { ...current, phase: "error", error: "Chat disconnected before confirming the file message." } : current);
+        }
         clearTimeout(remoteTypingTimer.current);
         setRemoteTyping(false);
         localTyping.current = false;
@@ -490,6 +632,7 @@ export function BookingChatModal({ booking, onClose }) {
                       <strong>{isMe ? "You" : name}</strong>
                       {isMe && <span className="chat-you">{isTechnician ? "Technician" : "Customer"}</span>}
                       <time dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}>{formatTime(msg.timestamp)}</time>
+                      {msg.pending && <span className="text-[10px] text-slate-400">Sending…</span>}
                     </div>
                     <p className="chat-entry-text">{msg.text}</p>
                   </div>
@@ -525,7 +668,52 @@ export function BookingChatModal({ booking, onClose }) {
 
         {/* Input Bar */}
         <footer className="chat-composer p-3 sm:p-4 bg-white dark:bg-[#061812] border-t border-slate-100 dark:border-emerald-900/30">
+          {uploadInfo && (
+            <div className="mb-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-emerald-900/40 dark:bg-[#040e0b]" aria-live="polite">
+              {uploadInfo.previewUrl ? (
+                <img src={uploadInfo.previewUrl} alt="" aria-hidden="true" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <Paperclip size={20} aria-hidden="true" className="mx-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{uploadInfo.name}</p>
+                <p className={`text-xs ${uploadInfo.phase === "error" ? "text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-slate-400"}`}>
+                  {uploadInfo.phase === "uploading" && `Uploading${uploadInfo.progress > 0 ? `… ${uploadInfo.progress}%` : "…"}`}
+                  {uploadInfo.phase === "sending" && "Uploaded. Sending to chat…"}
+                  {uploadInfo.phase === "sent" && "Sent to chat"}
+                  {uploadInfo.phase === "error" && uploadInfo.error}
+                  {uploadInfo.phase !== "error" && uploadInfo.phase !== "uploading" && ` · ${formatFileSize(uploadInfo.size)}`}
+                </p>
+                {uploadInfo.phase === "uploading" && (
+                  <progress className="mt-1 block h-1.5 w-full accent-emerald-600" max="100" value={uploadInfo.progress} aria-label={`Uploading ${uploadInfo.name}`} />
+                )}
+              </div>
+              {!uploadingFile && (
+                <button type="button" onClick={() => setUploadInfo(null)} aria-label="Dismiss file status" className="rounded-lg p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-emerald-950">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          )}
           <div className="chat-composer-field">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="sr-only"
+              aria-label="Choose a file to upload"
+              onChange={handleFileUpload}
+              disabled={uploadingFile || connectionStatus !== "connected"}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label={uploadingFile ? "Uploading file" : "Upload file"}
+              title={uploadingFile ? "Uploading file..." : "Upload file"}
+              disabled={uploadingFile || connectionStatus !== "connected"}
+              className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/40 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-emerald-950 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Paperclip size={17} className={uploadingFile ? "animate-pulse" : ""} />
+            </button>
             <input
               ref={inputRef}
               type="text"
