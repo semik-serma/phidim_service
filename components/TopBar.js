@@ -8,9 +8,9 @@ export const TopBar = () => {
   const [adIndex, setAdIndex] = useState(0);
 
   const adTexts = [
-    "⚡ 24/7 Fast On-Demand Technician Dispatch in Phidim & Panchthar",
-    "🔧 Certified AC, Electrical, CCTV, Fiber & Plumbing Services",
-    "📞 Live Video Diagnosis & Direct Technician Consultations"
+    "24/7 Fast On-Demand Technician Dispatch in Phidim & Panchthar",
+    "Certified AC, Electrical, CCTV, Fiber & Plumbing Services",
+    "Live Video Diagnosis & Direct Technician Consultations"
   ];
 
   useEffect(() => {

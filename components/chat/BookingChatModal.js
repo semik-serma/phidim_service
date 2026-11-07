@@ -5,6 +5,8 @@ import {
   MessageSquare,
   Send,
   Paperclip,
+  FileText,
+  Download,
   X,
   ArrowLeft,
   RefreshCw,
@@ -20,6 +22,57 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { playMessageChime } from "@/lib/chatStore";
+import { djangoBrowserUrl } from "@/lib/djangoClient";
+
+const IMAGE_FILE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jfif", "jpeg", "jpg", "png", "svg", "webp"]);
+
+function getChatAttachment(text) {
+  if (typeof text !== "string" || !text.trim()) return null;
+  try {
+    const url = new URL(text.trim(), typeof window === "undefined" ? "http://localhost" : window.location.href);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    const filename = decodeURIComponent(url.pathname.split("/").pop() || "").trim();
+    const extension = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
+    if (!extension) return null;
+    return { href: url.href, filename: filename || "Attachment", isImage: IMAGE_FILE_EXTENSIONS.has(extension) };
+  } catch {
+    return null;
+  }
+}
+
+function ChatAttachment({ attachment }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const [href, setHref] = useState(attachment.href);
+  const showImage = attachment.isImage && !imageFailed;
+
+  useEffect(() => {
+    setHref(djangoBrowserUrl(attachment.href));
+  }, [attachment.href]);
+
+  if (showImage) {
+    return (
+      <div className="chat-attachment-image-wrap">
+        <img
+          src={href}
+          alt={attachment.filename}
+          onError={() => setImageFailed(true)}
+          className="chat-attachment-image"
+        />
+        <a href={href} download={attachment.filename} className="chat-attachment-download" aria-label={`Download ${attachment.filename}`} title={`Download ${attachment.filename}`}>
+          <Download size={16} aria-hidden="true" />
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <a href={href} download={attachment.filename} className="chat-attachment-file" aria-label={`Download ${attachment.filename}`}>
+      <FileText size={22} aria-hidden="true" className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <span className="min-w-0 flex-1 truncate">{attachment.filename}</span>
+      <Download size={17} aria-hidden="true" className="shrink-0 text-slate-500 dark:text-slate-400" />
+    </a>
+  );
+}
 
 function personDisplayName(person, fallback) {
   if (!person) return fallback;
@@ -188,7 +241,6 @@ export function BookingChatModal({ booking, onClose }) {
     }
 
     setUploadingFile(true);
-    let uploaded = false;
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -220,42 +272,16 @@ export function BookingChatModal({ booking, onClose }) {
         throw new Error(result?.message || result?.detail || "File upload failed. Please try again.");
       }
 
-      uploaded = true;
-      setUploadInfo((current) => current ? { ...current, phase: "sending", progress: 100 } : current);
-      const socket = socketRef.current;
-      if (socket?.readyState !== WebSocket.OPEN) {
-        setUploadInfo((current) => current ? { ...current, phase: "error", error: "File uploaded, but chat disconnected before it could be sent." } : current);
-        setStatusMessage("File uploaded, but chat disconnected before it could be sent. Reconnect and upload it again.");
-        return;
-      }
-
-      pendingFileUrlRef.current = result.data.file_url;
-      const pendingId = `pending-file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      pendingFileMessageIdRef.current = pendingId;
-      setMessages((previous) => [...previous, {
-        id: pendingId,
-        text: result.data.file_url,
-        sender: myName,
-        sender_id: myId,
-        sender_role: user?.role,
-        timestamp: new Date().toISOString(),
-        isMe: true,
-        pending: true,
-      }]);
-      socket.send(JSON.stringify({ type: "chat.message", message: result.data.file_url }));
-      setUploadInfo((current) => current ? { ...current, phase: "sending" } : current);
+      setUploadInfo((current) => current ? {
+        ...current,
+        fileUrl: result.data.file_url,
+        phase: "ready",
+        progress: 100,
+      } : current);
     } catch (err) {
-      console.error("Failed to upload or send chat file:", err);
-      if (pendingFileMessageIdRef.current) {
-        const failedId = pendingFileMessageIdRef.current;
-        pendingFileMessageIdRef.current = "";
-        pendingFileUrlRef.current = "";
-        setMessages((previous) => previous.filter((message) => message.id !== failedId));
-      }
-      setUploadInfo((current) => current ? { ...current, phase: "error", error: uploaded ? "Uploaded, but it could not be sent to chat." : (err?.message || "File upload failed.") } : current);
-      setStatusMessage(uploaded
-        ? "File uploaded, but it could not be sent to chat. Reconnect and upload it again."
-        : err?.message || "File upload failed. Please try again.");
+      console.error("Failed to upload chat file:", err);
+      setUploadInfo((current) => current ? { ...current, phase: "error", error: err?.message || "File upload failed." } : current);
+      setStatusMessage(err?.message || "File upload failed. Please try again.");
     } finally {
       setUploadingFile(false);
     }
@@ -355,7 +381,7 @@ export function BookingChatModal({ booking, onClose }) {
             pendingFileUrlRef.current = "";
             const pendingId = pendingFileMessageIdRef.current;
             pendingFileMessageIdRef.current = "";
-            setUploadInfo((current) => current ? { ...current, phase: "sent", progress: 100 } : current);
+            setUploadInfo(null);
             setMessages((previous) => {
               if (previous.some((message) => String(message.id) === String(newMsg.id))) return previous;
               const pendingIndex = previous.findIndex((message) => message.id === pendingId);
@@ -441,9 +467,10 @@ export function BookingChatModal({ booking, onClose }) {
   // Send message
   const handleSendMessage = (textToSend) => {
     const text = (textToSend || inputText).trim();
-    if (!text) return;
+    const attachmentToSend = !textToSend && uploadInfo?.phase === "ready" ? uploadInfo : null;
+    if (!text && !attachmentToSend) return;
 
-    if (Array.from(text).length > 5000) {
+    if (text && Array.from(text).length > 5000) {
       setStatusMessage("Message exceeds 5000 characters");
       return;
     }
@@ -453,16 +480,41 @@ export function BookingChatModal({ booking, onClose }) {
     }
     try {
       stopTyping();
-      socketRef.current.send(JSON.stringify({ type: "chat.message", message: text }));
+      if (text) socketRef.current.send(JSON.stringify({ type: "chat.message", message: text }));
+      if (attachmentToSend?.fileUrl) {
+        const fileUrl = attachmentToSend.fileUrl;
+        const pendingId = `pending-file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        pendingFileUrlRef.current = fileUrl;
+        pendingFileMessageIdRef.current = pendingId;
+        setMessages((previous) => [...previous, {
+          id: pendingId,
+          text: fileUrl,
+          sender: myName,
+          sender_id: myId,
+          sender_role: user?.role,
+          timestamp: new Date().toISOString(),
+          isMe: true,
+          pending: true,
+        }]);
+        socketRef.current.send(JSON.stringify({ type: "chat.message", message: fileUrl }));
+        setUploadInfo((current) => current?.fileUrl === fileUrl ? { ...current, phase: "sending" } : current);
+      }
       setStatusMessage("");
     } catch (err) {
       console.error("Failed to send WebSocket message:", err);
+      if (pendingFileMessageIdRef.current) {
+        const failedId = pendingFileMessageIdRef.current;
+        pendingFileMessageIdRef.current = "";
+        pendingFileUrlRef.current = "";
+        setMessages((previous) => previous.filter((message) => message.id !== failedId));
+        setUploadInfo((current) => current ? { ...current, phase: "ready" } : current);
+      }
       setStatusMessage("Unable to send message. Please try again.");
       return;
     }
 
     // Display the persisted message when the server broadcasts it back.
-    setInputText("");
+    if (text) setInputText("");
     if (inputRef.current) inputRef.current.focus();
   };
 
@@ -622,6 +674,7 @@ export function BookingChatModal({ booking, onClose }) {
             const date = new Date(msg.timestamp);
             const previous = index ? new Date(messages[index - 1].timestamp) : null;
             const showDate = Number.isFinite(date.getTime()) && (!previous || date.toDateString() !== previous.toDateString());
+            const attachment = getChatAttachment(msg.text);
             return (
               <div key={msg.id}>
                 {showDate && <div className="chat-date">{date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div>}
@@ -634,7 +687,7 @@ export function BookingChatModal({ booking, onClose }) {
                       <time dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}>{formatTime(msg.timestamp)}</time>
                       {msg.pending && <span className="text-[10px] text-slate-400">Sending…</span>}
                     </div>
-                    <p className="chat-entry-text">{msg.text}</p>
+                    {attachment ? <ChatAttachment attachment={attachment} /> : <p className="chat-entry-text">{msg.text}</p>}
                   </div>
                 </article>
               </div>
@@ -679,8 +732,8 @@ export function BookingChatModal({ booking, onClose }) {
                 <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{uploadInfo.name}</p>
                 <p className={`text-xs ${uploadInfo.phase === "error" ? "text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-slate-400"}`}>
                   {uploadInfo.phase === "uploading" && `Uploading${uploadInfo.progress > 0 ? `… ${uploadInfo.progress}%` : "…"}`}
-                  {uploadInfo.phase === "sending" && "Uploaded. Sending to chat…"}
-                  {uploadInfo.phase === "sent" && "Sent to chat"}
+                  {uploadInfo.phase === "ready" && "Ready to send"}
+                  {uploadInfo.phase === "sending" && "Sending to chat…"}
                   {uploadInfo.phase === "error" && uploadInfo.error}
                   {uploadInfo.phase !== "error" && uploadInfo.phase !== "uploading" && ` · ${formatFileSize(uploadInfo.size)}`}
                 </p>
@@ -688,8 +741,8 @@ export function BookingChatModal({ booking, onClose }) {
                   <progress className="mt-1 block h-1.5 w-full accent-emerald-600" max="100" value={uploadInfo.progress} aria-label={`Uploading ${uploadInfo.name}`} />
                 )}
               </div>
-              {!uploadingFile && (
-                <button type="button" onClick={() => setUploadInfo(null)} aria-label="Dismiss file status" className="rounded-lg p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-emerald-950">
+              {!uploadingFile && uploadInfo.phase !== "sending" && (
+                <button type="button" onClick={() => setUploadInfo(null)} aria-label="Remove attachment" title="Remove attachment" className="rounded-lg p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-emerald-950">
                   <X size={16} />
                 </button>
               )}
@@ -702,14 +755,14 @@ export function BookingChatModal({ booking, onClose }) {
               className="sr-only"
               aria-label="Choose a file to upload"
               onChange={handleFileUpload}
-              disabled={uploadingFile || connectionStatus !== "connected"}
+              disabled={uploadingFile || uploadInfo?.phase === "ready" || uploadInfo?.phase === "sending" || connectionStatus !== "connected"}
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              aria-label={uploadingFile ? "Uploading file" : "Upload file"}
-              title={uploadingFile ? "Uploading file..." : "Upload file"}
-              disabled={uploadingFile || connectionStatus !== "connected"}
+              aria-label={uploadingFile || uploadInfo?.phase === "sending" ? "Sending file" : uploadInfo?.phase === "ready" ? "Remove the current attachment before adding another" : "Upload file"}
+              title={uploadingFile ? "Uploading file..." : uploadInfo?.phase === "sending" ? "Sending file..." : uploadInfo?.phase === "ready" ? "Remove the current attachment before adding another" : "Upload file"}
+              disabled={uploadingFile || uploadInfo?.phase === "ready" || uploadInfo?.phase === "sending" || connectionStatus !== "connected"}
               className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/40 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-emerald-950 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Paperclip size={17} className={uploadingFile ? "animate-pulse" : ""} />
@@ -729,7 +782,7 @@ export function BookingChatModal({ booking, onClose }) {
               type="button"
               onClick={() => handleSendMessage()}
               aria-label="Send message"
-              disabled={!inputText.trim() || connectionStatus !== "connected"}
+              disabled={(!inputText.trim() && uploadInfo?.phase !== "ready") || connectionStatus !== "connected"}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white font-bold rounded-xl text-sm flex items-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed shadow-md shadow-emerald-600/20"
             >
               <Send size={15} />

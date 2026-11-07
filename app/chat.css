@@ -49,6 +49,12 @@
 .chat-entry-meta time { font-size: 10px; color: var(--chat-muted); }
 .chat-you { color: #059669; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .chat-entry-text { color: var(--chat-text); font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-attachment-image-wrap { display: inline-block; position: relative; max-width: min(100%, 360px); overflow: hidden; border-radius: 14px; background: var(--chat-panel); }
+.chat-attachment-image { display: block; max-width: 100%; max-height: 360px; object-fit: contain; }
+.chat-attachment-download { position: absolute; right: 8px; bottom: 8px; display: grid; width: 34px; height: 34px; place-items: center; border-radius: 999px; color: #fff; background: rgb(15 23 42 / 72%); }
+.chat-attachment-download:hover { background: rgb(15 23 42 / 90%); }
+.chat-attachment-file { display: inline-flex; align-items: center; gap: 10px; max-width: min(100%, 360px); padding: 11px 13px; border: 1px solid var(--chat-line); border-radius: 12px; color: var(--chat-text); background: var(--chat-panel); text-align: left; text-decoration: none; }
+.chat-attachment-file:hover { border-color: #10b981; }
 .chat-reactions { display: flex; gap: 5px; margin-top: 5px; }
 .chat-reactions button, .chat-reaction { border: 1px solid var(--chat-line); background: var(--chat-panel); border-radius: 6px; padding: 2px 7px; font-size: 12px; }
 .chat-reactions button { opacity: 0; cursor: pointer; }
