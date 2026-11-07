@@ -42,7 +42,7 @@ export async function fetchBookings({ token = readToken(), baseUrl = API_BASE, f
 
 export async function updateTechnicianBooking(bookingId, status, { token = readToken(), baseUrl = API_BASE, fetchImpl = djangoFetch, signal } = {}) {
   if (!Number.isInteger(bookingId) || bookingId <= 0) throw new Error("Select a valid booking.");
-  if (!["c", "r"].includes(status)) throw new Error("Select accept or reject.");
+  if (!["c", "r", "s"].includes(status)) throw new Error("Select accept or reject, or mark the booking served.");
   if (!token) throw new Error("Please sign in again to update this booking.");
   const response = await fetchImpl(baseUrl.replace(/\/+$/, "") + "/technician/booking/", {
     method: "PATCH", signal, cache: "no-store", redirect: "error",

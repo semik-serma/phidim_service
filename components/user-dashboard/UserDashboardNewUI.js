@@ -117,7 +117,6 @@ export default function UserDashboardNewUI() {
                     <th scope="col">Technician</th>
                     <th scope="col">Status</th>
                     <th scope="col">Scheduled</th>
-                    <th scope="col">Fee (NPR)</th>
                     <th scope="col">Action</th>
                   </tr>
                 </thead>
@@ -136,7 +135,6 @@ export default function UserDashboardNewUI() {
                         </span>
                       </td>
                       <td>{scheduledDate(booking.date)}</td>
-                      <td>{booking.amount ?? booking.numericAmount ?? "Unavailable"}</td>
                       <td>
                         <div className={styles.actionButtons}>
                           <button

@@ -38,6 +38,7 @@ export function TechnicianBookings() {
   const [notice, setNotice] = useState(null);
   const [location, setLocation] = useState(null);
   const [shareBooking, setShareBooking] = useState(null);
+  const [servingBooking, setServingBooking] = useState(null);
 
   const [shareConfirmed, setShareConfirmed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("idle");
@@ -183,6 +184,7 @@ export function TechnicianBookings() {
   useEffect(() => {
     setDecision(null);
     setNotice(null);
+    setServingBooking(null);
     return () => {
       updateRequest.current?.abort();
       updateRequest.current = null;
@@ -229,6 +231,26 @@ export function TechnicianBookings() {
     }
   };
 
+  const markServed = async (booking, event) => {
+    event.stopPropagation();
+    if (updateRequest.current || booking.status === "s") return;
+    const controller = new AbortController();
+    updateRequest.current = controller;
+    setServingBooking({ id: booking.id, error: "" });
+    setNotice(null);
+    try {
+      const saved = await updateTechnicianBooking(booking.id, "s", { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setServingBooking(null);
+      setNotice({ owner, message: `Booking #${saved.booking} marked as served successfully.` });
+      setRevision(value => value + 1);
+    } catch (error) {
+      if (!controller.signal.aborted) setServingBooking({ id: booking.id, error: error.message || "Unable to mark booking as served. Please retry." });
+    } finally {
+      if (updateRequest.current === controller) updateRequest.current = null;
+    }
+  };
+
   useEffect(() => {
     if (!owner) {
       setState({ owner: null, revision: -1, bookings: [], loading: true, error: "" });
@@ -253,7 +275,6 @@ export function TechnicianBookings() {
   const filteredBookings = bookings.filter(booking => [
     `Booking #${booking.id}`,
     personName(booking.customer, "Customer unavailable"),
-    personName(booking.technician, "Technician unavailable"),
     booking.status_display, booking.status, booking.problem_details,
     scheduledDate(booking.date), booking.latitude, booking.longitude,
   ].join(" ").toLowerCase().includes(query));
@@ -296,7 +317,7 @@ export function TechnicianBookings() {
           <table className="w-full min-w-[1000px] text-left text-sm">
             <caption className="sr-only">Technician bookings. Scheduled dates are shown in Nepal time.</caption>
             <thead className="bg-slate-50 dark:bg-[#040e0b] text-slate-500 dark:text-slate-400">
-              <tr>{["Booking ID", "Customer", "Technician", "Status", "Scheduled (Nepal time)", "Problem details", "Location"].map(label => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}</tr>
+              <tr>{["Booking ID", "Customer", "Status", "Scheduled (Nepal time)", "Problem details", "Location", "Action"].map(label => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-emerald-900/30">
               {filteredBookings.length === 0 ? (
@@ -326,13 +347,10 @@ export function TechnicianBookings() {
                       <MessageSquare size={14} aria-hidden="true" />Chat
                     </button>
                   </td>
-                  <td className="px-4 py-4 break-words min-w-36">{personName(booking.technician, "Technician unavailable")}</td>
                   <td className="px-4 py-4"><span className="inline-block rounded-full bg-emerald-100 dark:bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300">{booking.status_display || booking.status || "Status unavailable"}</span></td>
                   <td className="px-4 py-4 min-w-48">{scheduledDate(booking.date)}</td>
                   <td className="px-4 py-4 min-w-64 max-w-sm whitespace-pre-wrap break-words">{booking.problem_details?.trim() || "Problem details unavailable"}</td>
                   <td className="px-4 py-4 whitespace-nowrap">
-                    <div>Latitude: {latitude}</div>
-                    <div>Longitude: {longitude}</div>
                     <div className="mt-3" onClick={event => event.stopPropagation()}>
                       {mapUrl ? (
                         <a href={directionsUrl || mapUrl} target="_blank" rel="noopener noreferrer" aria-label={`${mapLabel} for booking #${booking.id} (opens in a new tab)`} className="inline-flex rounded-xl bg-emerald-50 dark:bg-emerald-950 px-4 py-2 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{mapLabel}</a>
@@ -343,6 +361,14 @@ export function TechnicianBookings() {
                         </>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-4" onClick={event => event.stopPropagation()}>
+                    {booking.status === "s" ? <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Served</span> : <>
+                      <button type="button" disabled={!!updateRequest.current} onClick={event => markServed(booking, event)} aria-label={`Mark booking #${booking.id} as served`} className="whitespace-nowrap rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+                        {servingBooking?.id === booking.id ? "Marking served…" : "Mark served"}
+                      </button>
+                      {servingBooking?.id === booking.id && servingBooking.error && <p role="alert" className="mt-2 max-w-48 whitespace-normal text-xs text-rose-600">{servingBooking.error}</p>}
+                    </>}
                   </td>
                 </tr>
                 );
